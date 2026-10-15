@@ -1,0 +1,2 @@
+# Template source files are embedded at build time via embed.FS.
+# This directory is intentionally empty until Phase 3 populates templates.

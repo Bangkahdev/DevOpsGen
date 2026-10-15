@@ -1,0 +1,25 @@
+# Build artifacts
+devopsgen
+*.exe
+*.bin
+
+# Go
+go.sum.bak
+coverage.out
+*.test
+*.out
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+tmp_*.txt
+err.log
+out.log
+
+# Local template overrides
+templates/local/
