@@ -15,7 +15,7 @@ import (
 )
 
 // Version reports the bundled template version.
-const Version = "dev"
+var Version = "dev"
 
 // FS returns the embedded template filesystem rooted at the templates
 // directory. Callers must treat returned paths as relative to that root.
