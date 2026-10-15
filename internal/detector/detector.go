@@ -15,15 +15,15 @@ import (
 
 // DetectionResult summarizes what the detector found in a project root.
 type DetectionResult struct {
-	Stack         string
-	Indicators    []string
-	AppCandidates []string
-	BuildCmd      string
-	TestCmd       string
-	StartCmd      string
-	Lockfile      string
+	Stack          string
+	Indicators     []string
+	AppCandidates  []string
+	BuildCmd       string
+	TestCmd        string
+	StartCmd       string
+	Lockfile       string
 	PackageManager string
-	Ambiguities   []string
+	Ambiguities    []string
 }
 
 // Detector is the interface for stack detection implementations.

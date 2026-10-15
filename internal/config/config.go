@@ -36,15 +36,15 @@ type Registry string
 
 const (
 	RegistryDockerHub Registry = "dockerhub"
-	RegistryGHCR     Registry = "ghcr"
+	RegistryGHCR      Registry = "ghcr"
 )
 
 // K8sOptions holds Kubernetes-related configuration.
 type K8sOptions struct {
-	Enabled      bool
-	Ingress      bool
-	IngressHost  string
-	HealthPath   string
+	Enabled     bool
+	Ingress     bool
+	IngressHost string
+	HealthPath  string
 }
 
 // GenerationOptions holds filesystem-operation policies.

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 )
+
 // MemFS is an in-memory filesystem used by tests to simulate I/O failures
 // without touching the real operating system. It implements FS.
 type MemFS struct {

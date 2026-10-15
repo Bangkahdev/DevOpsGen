@@ -41,6 +41,7 @@ type FS interface {
 type RealFS struct {
 	Root string
 }
+
 func (f *RealFS) PlanBuild(artifacts map[string][]byte) (Plan, error) {
 	if err := f.validateRoot(); err != nil {
 		return Plan{}, err

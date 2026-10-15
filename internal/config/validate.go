@@ -21,7 +21,7 @@ var (
 	errInvalidPort       = errors.New("port must be in range 1-65535")
 	errInvalidAppType    = errors.New("app-type is not supported for the selected stack")
 	errEmptyImage        = errors.New("image is required")
-	errInvalidHostname    = errors.New("ingress-host must be a valid RFC 1123 hostname")
+	errInvalidHostname   = errors.New("ingress-host must be a valid RFC 1123 hostname")
 	errInvalidHealthPath = errors.New("health-path must be a valid HTTP path")
 	errInvalidCommand    = errors.New("command must be a single line without control characters")
 )
@@ -121,7 +121,7 @@ func ValidateOutputDir(dir string) error {
 		return errors.New("output-dir must not escape the target directory")
 	}
 	// Reject embedded traversal segments.
-	if strings.Contains(clean, string(filepath.Separator)+".." + string(filepath.Separator)) {
+	if strings.Contains(clean, string(filepath.Separator)+".."+string(filepath.Separator)) {
 		return errors.New("output-dir must not escape the target directory")
 	}
 	return nil

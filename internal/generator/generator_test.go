@@ -10,16 +10,16 @@ import (
 
 func TestGenerate_Go(t *testing.T) {
 	cfg := config.Config{
-		Stack:     config.StackGo,
-		AppType:   config.AppTypeBinary,
-		CI:        config.CIGitHubActions,
-		Registry:  config.RegistryGHCR,
-		Image:     "bangkah/my-app",
-		Port:      8080,
-		BuildCmd:  "go build -o server .",
-		TestCmd:   "go test ./...",
-		StartCmd:  "./server",
-		Tag:       "v1",
+		Stack:    config.StackGo,
+		AppType:  config.AppTypeBinary,
+		CI:       config.CIGitHubActions,
+		Registry: config.RegistryGHCR,
+		Image:    "bangkah/my-app",
+		Port:     8080,
+		BuildCmd: "go build -o server .",
+		TestCmd:  "go test ./...",
+		StartCmd: "./server",
+		Tag:      "v1",
 	}
 	g := New()
 	arts, err := g.Generate(cfg)
@@ -48,13 +48,13 @@ func TestGenerate_Go(t *testing.T) {
 
 func TestGenerate_NodeExpress(t *testing.T) {
 	cfg := config.Config{
-		Stack:     config.StackNode,
-		AppType:   config.AppTypeExpress,
-		CI:        config.CIGitHubActions,
-		Registry:  config.RegistryDockerHub,
-		Image:     "bangkah/api",
-		Port:      3000,
-		StartCmd:  "npm start",
+		Stack:    config.StackNode,
+		AppType:  config.AppTypeExpress,
+		CI:       config.CIGitHubActions,
+		Registry: config.RegistryDockerHub,
+		Image:    "bangkah/api",
+		Port:     3000,
+		StartCmd: "npm start",
 	}
 	arts, err := New().Generate(cfg)
 	if err != nil {
@@ -76,12 +76,12 @@ func TestGenerate_NodeExpress(t *testing.T) {
 
 func TestGenerate_TestCmdSkipped(t *testing.T) {
 	cfg := config.Config{
-		Stack:     config.StackGo,
-		AppType:   config.AppTypeBinary,
-		CI:        config.CIGitHubActions,
-		Registry:  config.RegistryDockerHub,
-		Image:     "bangkah/app",
-		Port:      8080,
+		Stack:    config.StackGo,
+		AppType:  config.AppTypeBinary,
+		CI:       config.CIGitHubActions,
+		Registry: config.RegistryDockerHub,
+		Image:    "bangkah/app",
+		Port:     8080,
 	}
 	arts, err := New().Generate(cfg)
 	if err != nil {
@@ -106,14 +106,14 @@ func TestGenerate_TestCmdSkipped(t *testing.T) {
 
 func TestGenerate_Deterministic(t *testing.T) {
 	cfg := config.Config{
-		Stack:     config.StackGo,
-		AppType:   config.AppTypeBinary,
-		CI:        config.CIGitHubActions,
-		Registry:  config.RegistryGHCR,
-		Image:     "bangkah/my-app",
-		Port:      8080,
-		BuildCmd:  "go build",
-		TestCmd:   "go test",
+		Stack:    config.StackGo,
+		AppType:  config.AppTypeBinary,
+		CI:       config.CIGitHubActions,
+		Registry: config.RegistryGHCR,
+		Image:    "bangkah/my-app",
+		Port:     8080,
+		BuildCmd: "go build",
+		TestCmd:  "go test",
 	}
 	first, err := New().Generate(cfg)
 	if err != nil {
@@ -138,13 +138,13 @@ func TestGenerate_Deterministic(t *testing.T) {
 
 func TestGenerate_NoK8s(t *testing.T) {
 	cfg := config.Config{
-		Stack:     config.StackGo,
-		AppType:   config.AppTypeBinary,
-		CI:        config.CIGitHubActions,
-		Registry:  config.RegistryDockerHub,
-		Image:     "bangkah/app",
-		Port:      8080,
-		K8s:       config.K8sOptions{Enabled: false},
+		Stack:    config.StackGo,
+		AppType:  config.AppTypeBinary,
+		CI:       config.CIGitHubActions,
+		Registry: config.RegistryDockerHub,
+		Image:    "bangkah/app",
+		Port:     8080,
+		K8s:      config.K8sOptions{Enabled: false},
 	}
 	arts, err := New().Generate(cfg)
 	if err != nil {
@@ -159,12 +159,12 @@ func TestGenerate_NoK8s(t *testing.T) {
 
 func TestGenerate_K8sWithIngress(t *testing.T) {
 	cfg := config.Config{
-		Stack:     config.StackGo,
-		AppType:   config.AppTypeBinary,
-		CI:        config.CIGitHubActions,
-		Registry:  config.RegistryDockerHub,
-		Image:     "bangkah/app",
-		Port:      8080,
+		Stack:    config.StackGo,
+		AppType:  config.AppTypeBinary,
+		CI:       config.CIGitHubActions,
+		Registry: config.RegistryDockerHub,
+		Image:    "bangkah/app",
+		Port:     8080,
 		K8s: config.K8sOptions{
 			Enabled:     true,
 			Ingress:     true,

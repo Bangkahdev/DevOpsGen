@@ -89,7 +89,7 @@ type exitCoder interface {
 // Domain error sentinels. Concrete types may wrap these with context.
 var (
 	errConflict       = errors.New("file conflict without overwrite consent")
-	errValidation    = errors.New("artifact validation failed")
+	errValidation     = errors.New("artifact validation failed")
 	errAmbiguousStack = errors.New("ambiguous or unsupported stack")
 )
 

@@ -12,8 +12,8 @@ func TestRealFS_PlanBuildAndCommit(t *testing.T) {
 	fs := &RealFS{Root: dir}
 
 	artifacts := map[string][]byte{
-		"Dockerfile":                  []byte("FROM scratch"),
-		".github/workflows/ci.yml":    []byte("name: CI"),
+		"Dockerfile":               []byte("FROM scratch"),
+		".github/workflows/ci.yml": []byte("name: CI"),
 	}
 	p, err := fs.PlanBuild(artifacts)
 	if err != nil {
