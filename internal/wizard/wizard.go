@@ -167,4 +167,3 @@ var (
 	titleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63")).Padding(0, 1)
 	errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 )
-

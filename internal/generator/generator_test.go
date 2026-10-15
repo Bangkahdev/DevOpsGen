@@ -192,3 +192,55 @@ func TestGenerate_K8sWithIngress(t *testing.T) {
 		t.Fatal("deployment missing health probe")
 	}
 }
+
+func TestTemplateData_Helpers(t *testing.T) {
+	cfg := config.Config{
+		Stack:    config.StackGo,
+		AppType:  config.AppTypeBinary,
+		CI:       config.CIGitHubActions,
+		Registry: config.RegistryGHCR,
+		Image:    "org/my-service",
+		Port:     8080,
+		Tag:      "v2",
+		K8s: config.K8sOptions{
+			Enabled:     true,
+			Ingress:     true,
+			IngressHost: "svc.example.com",
+			HealthPath:  "/live",
+		},
+	}
+	td := templateData{Config: cfg}
+	if td.Name() != "my-service" {
+		t.Fatalf("expected my-service, got %q", td.Name())
+	}
+	if td.ImageRef() != "ghcr.io/org/my-service" {
+		t.Fatalf("expected image ref ghcr.io/org/my-service, got %q", td.ImageRef())
+	}
+	if td.Tag() != "v2" {
+		t.Fatalf("expected v2, got %q", td.Tag())
+	}
+	tdDefaultTag := templateData{Config: config.Config{}}
+	if tdDefaultTag.Tag() != "latest" {
+		t.Fatalf("expected latest, got %q", tdDefaultTag.Tag())
+	}
+	if td.IngressHost() != "svc.example.com" {
+		t.Fatalf("expected ingress host, got %q", td.IngressHost())
+	}
+	if td.HealthPath() != "/live" {
+		t.Fatalf("expected /live, got %q", td.HealthPath())
+	}
+	if !td.Ingress() {
+		t.Fatal("expected Ingress true")
+	}
+	if !td.K8sEnabled() {
+		t.Fatal("expected K8sEnabled true")
+	}
+
+	// Test lastSegment helper
+	if lastSegment("simple") != "simple" {
+		t.Fatalf("expected simple, got %q", lastSegment("simple"))
+	}
+	if lastSegment("a/b/c/") != "c" {
+		t.Fatalf("expected c, got %q", lastSegment("a/b/c/"))
+	}
+}

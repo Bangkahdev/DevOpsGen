@@ -13,9 +13,9 @@ import (
 // versionVars holds values injected at build time via ldflags.
 // Defaults keep dev builds usable without a release pipeline.
 var (
-	version    = "dev"
-	commit     = "unknown"
-	date       = "unknown"
+	version = "dev"
+	commit  = "unknown"
+	date    = "unknown"
 )
 
 // NewVersionCommand returns the version command.
