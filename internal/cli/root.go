@@ -82,7 +82,7 @@ var (
 // newInitCommand wires the init command. The implementation lives in a
 // separate file so this file stays focused on the command tree.
 func newInitCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Generate DevOps configuration for the project",
 		Long: `Initialize DevOps configuration.
@@ -97,6 +97,8 @@ process runs headless and never waits for stdin.`,
 			return nil
 		},
 	}
+	_ = AddInitFlags(cmd)
+	return cmd
 }
 
 func newDetectCommand() *cobra.Command {

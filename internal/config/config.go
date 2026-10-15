@@ -8,20 +8,20 @@ package config
 type StackType string
 
 const (
-	StackGo    StackType = "go"
-	StackNode  StackType = "nodejs"
+	StackGo   StackType = "go"
+	StackNode StackType = "nodejs"
 )
 
 // AppType identifies the application shape within a stack.
 type AppType string
 
 const (
-	AppTypeBinary   AppType = "binary"   // Go
-	AppTypeExpress  AppType = "express"  // Node.js
-	AppTypeNextJS   AppType = "nextjs"   // Node.js
-	AppTypeVite     AppType = "vite"     // Node.js
-	AppTypeNestJS   AppType = "nestjs"   // Node.js
-	AppTypeGeneric  AppType = "generic"  // Node.js
+	AppTypeBinary  AppType = "binary"  // Go
+	AppTypeExpress AppType = "express" // Node.js
+	AppTypeNextJS  AppType = "nextjs"  // Node.js
+	AppTypeVite    AppType = "vite"    // Node.js
+	AppTypeNestJS  AppType = "nestjs"  // Node.js
+	AppTypeGeneric AppType = "generic" // Node.js
 )
 
 // CIProvider identifies a supported CI/CD provider.
@@ -58,19 +58,19 @@ type GenerationOptions struct {
 // Field validation happens before rendering; required fields are enforced
 // per the SRS 4.1 parameter matrix.
 type Config struct {
-	Stack       StackType
-	AppType     AppType
-	CI          CIProvider
-	Registry    Registry
-	Image       string // namespace/repository, no registry host, no tag
-	Port        int
-	BuildCmd    string
-	TestCmd     string
-	StartCmd    string
-	Tag         string // additional alias; default "latest"
-	K8s         K8sOptions
-	OutputDir   string
-	Generation  GenerationOptions
+	Stack      StackType
+	AppType    AppType
+	CI         CIProvider
+	Registry   Registry
+	Image      string // namespace/repository, no registry host, no tag
+	Port       int
+	BuildCmd   string
+	TestCmd    string
+	StartCmd   string
+	Tag        string // additional alias; default "latest"
+	K8s        K8sOptions
+	OutputDir  string
+	Generation GenerationOptions
 }
 
 // DefaultTag is the default mutable alias published alongside the commit SHA.
