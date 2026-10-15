@@ -43,7 +43,7 @@ jobs:
       - name: actionlint
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          $(go env GOPATH)/bin/actionlint -color .github/workflows/ci.yml
+          "$(go env GOPATH)"/bin/actionlint -color .github/workflows/ci.yml
 
   test:
     name: Test
