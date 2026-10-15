@@ -67,13 +67,14 @@ jobs:
       - name: Test with coverage
         run: |
           go test -coverprofile=coverage.out ./internal/...
-          go tool cover -func=coverage.out | tee coverage.txt
+          go tool cover -func=coverage.out > coverage.txt
+          cat coverage.txt
 
       - name: Enforce coverage floor
         run: |
           TOTAL=$(grep -E '^total:' coverage.txt | awk '{print $NF}' | sed 's/%//')
           echo "Total coverage: $TOTAL%"
-          awk -v t=$TOTAL 'BEGIN { if (t < 80) { print "coverage " t "% is below 80% floor"; exit 1 } }'
+          awk -v t="$TOTAL" 'BEGIN { if (t < 80) { print "coverage " t "% is below 80% floor"; exit 1 } }'
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
