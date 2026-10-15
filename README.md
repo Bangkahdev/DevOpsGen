@@ -90,7 +90,3 @@ devopsgen/
 ├── Makefile
 └── README.md
 ```
-
-## License
-
-MIT
