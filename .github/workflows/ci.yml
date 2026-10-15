@@ -63,7 +63,7 @@ jobs:
 
       - name: Enforce coverage floor
         run: |
-          TOTAL=$(grep -E '^total:' coverage.txt | awk '{print $2}' | sed 's/%//')
+          TOTAL=$(grep -E '^total:' coverage.txt | awk '{print $NF}' | sed 's/%//')
           echo "Total coverage: $TOTAL%"
           awk -v t=$TOTAL 'BEGIN { if (t < 80) { print "coverage " t "% is below 80% floor"; exit 1 } }'
 
