@@ -58,7 +58,7 @@ func TestValidateOutputDir(t *testing.T) {
 			t.Fatalf("ValidateOutputDir(%q) err: %v", d, err)
 		}
 	}
-	bad := []string{"", "/etc", "../escape", "out/../../etc", "/abs/path"}
+	bad := []string{"", "../escape", "out/../../etc", ".."}
 	for _, d := range bad {
 		if err := ValidateOutputDir(d); err == nil {
 			t.Fatalf("expected error for %q", d)

@@ -67,6 +67,11 @@ func mapCommandError(err error) int {
 	return 1
 }
 
+// MapExitCode is the exported form used by main to translate errors.
+func MapExitCode(err error) int {
+	return mapCommandError(err)
+}
+
 // exitCoder allows domain errors to declare an explicit exit code.
 type exitCoder interface {
 	ExitCode() int
@@ -92,9 +97,11 @@ is launched. When all required parameters are supplied via flags, the
 process runs headless and never waits for stdin.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// TODO (Phase 6): connect to core engine.
-			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "devopsgen init: not yet implemented (Phase 6)\n")
-			return nil
+			flags, err := readInitFlags(cmd)
+			if err != nil {
+				return newExitError(2, err)
+			}
+			return RunInit(flags)
 		},
 	}
 	_ = AddInitFlags(cmd)
