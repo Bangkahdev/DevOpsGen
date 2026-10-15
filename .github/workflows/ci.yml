@@ -6,31 +6,135 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  build-and-test:
-    name: Build and test
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.22'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt check
+        run: |
+          # Normalize CRLF -> LF before gofmt, since the repo is authored
+          # on Windows and gofmt on the Linux runner expects LF.
+          find . -name '*.go' -type f -exec sed -i 's/\r$//' {} +
+          fmt_out=$(gofmt -l .)
+          if [ -n "$fmt_out" ]; then
+            echo "gofmt issues in:"
+            echo "$fmt_out"
+            exit 1
+          fi
+
+  test:
+    name: Test
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        go-version: ["1.22"]
+        go-version: ['1.22']
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Set up Go ${{ matrix.go-version }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: ${{ matrix.go-version }}
 
       - name: Download dependencies
         run: go mod download
 
+      - name: Test with coverage
+        run: |
+          go test -coverprofile=coverage.out ./internal/...
+          go tool cover -func=coverage.out | tee coverage.txt
+
+      - name: Enforce coverage floor
+        run: |
+          TOTAL=$(grep -E '^total:' coverage.txt | awk '{print $NF}' | sed 's/%//')
+          echo "Total coverage: $TOTAL%"
+          awk -v t=$TOTAL 'BEGIN { if (t < 80) { print "coverage " t "% is below 80% floor"; exit 1 } }'
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.txt
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        arch: [amd64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.22'
+
       - name: Build
-        run: go build -o devopsgen ./cmd/devopsgen
+        run: go build -o devopsgen-${{ matrix.os }}-${{ matrix.arch }} ./cmd/devopsgen
 
-      - name: Vet
-        run: go vet ./...
+      - name: Smoke test
+        shell: bash
+        run: |
+          ./devopsgen-${{ matrix.os }}-${{ matrix.arch }} version
+          ./devopsgen-${{ matrix.os }}-${{ matrix.arch }} --help
 
-      - name: Test
-        run: go test ./...
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: devopsgen-${{ matrix.os }}-${{ matrix.arch }}
+          path: devopsgen-${{ matrix.os }}-${{ matrix.arch }}
+
+  e2e:
+    name: End-to-end
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.22'
+
+      - name: Run end-to-end generation
+        shell: bash
+        run: |
+          go build -o devopsgen ./cmd/devopsgen
+          mkdir -p /tmp/e2e-out
+          ./devopsgen init \
+            --stack go --ci github-actions --registry ghcr \
+            --image bangkah/my-app --port 8080 \
+            --build-cmd "go build -o server ." --test-cmd "go test ./..." \
+            --tag v1 --k8s --ingress \
+            --ingress-host app.example.com --health-path /health \
+            --output-dir /tmp/e2e-out
+          test -f /tmp/e2e-out/Dockerfile
+          test -f /tmp/e2e-out/.github/workflows/ci.yml
+          test -f /tmp/e2e-out/kubernetes/deployment.yaml
+          ./devopsgen validate --dir /tmp/e2e-out

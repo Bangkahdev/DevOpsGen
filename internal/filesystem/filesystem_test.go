@@ -9,7 +9,7 @@ import (
 func TestPlanBuild_NewFiles(t *testing.T) {
 	m := NewMemFS()
 	p, err := m.PlanBuild(map[string][]byte{
-		"Dockerfile":        []byte("FROM scratch"),
+		"Dockerfile":               []byte("FROM scratch"),
 		".github/workflows/ci.yml": []byte("name: CI"),
 	})
 	if err != nil {
@@ -73,7 +73,7 @@ func TestPlanBuild_TraversalRejected(t *testing.T) {
 func TestCommit_NewFiles(t *testing.T) {
 	m := NewMemFS()
 	p, _ := m.PlanBuild(map[string][]byte{
-		"Dockerfile": []byte("FROM scratch"),
+		"Dockerfile":               []byte("FROM scratch"),
 		".github/workflows/ci.yml": []byte("name: CI"),
 	})
 	if err := m.Commit(p); err != nil {

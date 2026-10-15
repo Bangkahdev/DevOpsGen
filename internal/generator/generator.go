@@ -31,10 +31,10 @@ func New() Generator {
 
 // templateSpec describes how to render one artifact.
 type templateSpec struct {
-	name      string
-	file      string
-	delims    [2]string
-	data      interface{}
+	name   string
+	file   string
+	delims [2]string
+	data   interface{}
 }
 
 // Generate renders all artifacts for the given configuration.
@@ -67,8 +67,8 @@ func (g *engine) specs(cfg config.Config) []templateSpec {
 	}
 	if cfg.K8s.Enabled {
 		specs = append(specs, templateSpec{
-			name:  "kubernetes/deployment.yaml",
-			file:  "kubernetes/deployment.yaml.tmpl",
+			name:   "kubernetes/deployment.yaml",
+			file:   "kubernetes/deployment.yaml.tmpl",
 			delims: [2]string{"{{", "}}"},
 			data:   data,
 		})

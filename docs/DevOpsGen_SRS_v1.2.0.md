@@ -9,6 +9,7 @@
 | Status | Approved for Implementation |
 | Jenis aplikasi | Command Line Interface (CLI) dan Terminal User Interface (TUI) |
 | Bahasa pemrograman | Go (Golang) |
+| Lisensi | Apache License 2.0 |
 | Target pengguna | Software Engineer, Backend Developer, DevOps Engineer, dan mahasiswa |
 | Target platform | Linux, macOS Intel/Apple Silicon, dan Windows pada arsitektur yang dinyatakan didukung dan diuji |
 | Tanggal baseline | 16 Oktober 2026 |

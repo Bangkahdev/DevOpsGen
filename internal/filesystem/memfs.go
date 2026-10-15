@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 )
+
 // MemFS is an in-memory filesystem used by tests to simulate I/O failures
 // without touching the real operating system. It implements FS.
 type MemFS struct {
@@ -35,18 +36,6 @@ func (m *MemFS) clean(p string) string {
 	p = strings.ReplaceAll(p, "\\", "/")
 	p = strings.TrimPrefix(p, "/")
 	return p
-}
-
-func (m *MemFS) isDir(p string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.dirs[m.clean(p)]
-}
-
-func (m *MemFS) mkdirAll(p string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.mkdirAllLocked(p)
 }
 
 func (m *MemFS) mkdirAllLocked(p string) {
@@ -187,9 +176,7 @@ func (m *MemFS) rollbackCreateLocked(paths []string) error {
 func (m *MemFS) rollbackReplaceLocked(backup map[string]string) error {
 	var first error
 	for orig, b := range backup {
-		if _, ok := m.files[orig]; ok {
-			delete(m.files, orig)
-		}
+		delete(m.files, orig)
 		if c, ok := m.files[b]; ok {
 			m.files[orig] = c
 			delete(m.files, b)

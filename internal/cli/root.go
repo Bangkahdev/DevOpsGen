@@ -9,8 +9,17 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
+
+	"devopsgen.dev/devopsgen/internal/detector"
+	"devopsgen.dev/devopsgen/internal/output"
+	"devopsgen.dev/devopsgen/internal/templates"
+	"devopsgen.dev/devopsgen/internal/validator"
 )
 
 // NewRootCommand builds the root command and registers the MVP subcommands.
@@ -80,7 +89,7 @@ type exitCoder interface {
 // Domain error sentinels. Concrete types may wrap these with context.
 var (
 	errConflict       = errors.New("file conflict without overwrite consent")
-	errValidation    = errors.New("artifact validation failed")
+	errValidation     = errors.New("artifact validation failed")
 	errAmbiguousStack = errors.New("ambiguous or unsupported stack")
 )
 
@@ -119,14 +128,46 @@ test / start commands, lockfile or package manager, and unresolved
 ambiguities. Detection is read-only.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "devopsgen detect: not yet implemented (Phase 5)\n")
-			return nil
+			return runDetect(cmd.OutOrStdout())
 		},
 	}
 }
 
+func runDetect(out io.Writer) error {
+	root, _ := os.Getwd()
+	d := detector.New()
+	r, err := d.Detect(root)
+	if err != nil {
+		return newExitError(5, fmt.Errorf("detect: %w", err))
+	}
+	fmt.Fprintf(out, "stack: %s\n", r.Stack)
+	fmt.Fprintf(out, "indicators: %s\n", strings.Join(r.Indicators, ", "))
+	if len(r.AppCandidates) > 0 {
+		fmt.Fprintf(out, "app-type candidates: %s\n", strings.Join(r.AppCandidates, ", "))
+	}
+	if r.BuildCmd != "" {
+		fmt.Fprintf(out, "build-cmd: %s\n", r.BuildCmd)
+	}
+	if r.TestCmd != "" {
+		fmt.Fprintf(out, "test-cmd: %s\n", r.TestCmd)
+	}
+	if r.StartCmd != "" {
+		fmt.Fprintf(out, "start-cmd: %s\n", r.StartCmd)
+	}
+	if r.Lockfile != "" {
+		fmt.Fprintf(out, "lockfile: %s\n", r.Lockfile)
+	}
+	if r.PackageManager != "" {
+		fmt.Fprintf(out, "package-manager: %s\n", r.PackageManager)
+	}
+	if r.IsAmbiguous() {
+		return newExitError(5, fmt.Errorf("ambiguities: %s", strings.Join(r.Ambiguities, "; ")))
+	}
+	return nil
+}
+
 func newValidateCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "validate",
 		Short: "Validate generated artifacts",
 		Long: `Validate generated artifacts in the working directory (or --dir).
@@ -136,10 +177,47 @@ selector/label alignment, image references, Service/Ingress relations,
 GitHub Actions structure, and port/health probe consistency.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "devopsgen validate: not yet implemented (Phase 5)\n")
-			return nil
+			dir, _ := cmd.Flags().GetString("dir")
+			return runValidate(dir, cmd.OutOrStderr())
 		},
 	}
+	_ = cmd.Flags().String("dir", ".", "directory containing artifacts to validate")
+	return cmd
+}
+
+func runValidate(dir string, out io.Writer) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return newExitError(1, fmt.Errorf("read dir: %w", err))
+	}
+	var arts []output.Artifact
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !isArtifact(name) {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return newExitError(1, fmt.Errorf("read %s: %w", name, err))
+		}
+		arts = append(arts, output.Artifact{Path: name, Content: b})
+	}
+	if len(arts) == 0 {
+		fmt.Fprintf(out, "no artifacts found in %s\n", dir)
+		return nil
+	}
+	r, err := validator.New().Validate(arts)
+	if err != nil {
+		return newExitError(4, fmt.Errorf("validate: %w", err))
+	}
+	if r != validator.ResultValid {
+		return newExitError(4, fmt.Errorf("validation failed: %s", r))
+	}
+	fmt.Fprintf(out, "Internal validation passed\n")
+	return nil
 }
 
 func newListCommand() *cobra.Command {
@@ -151,7 +229,12 @@ deployment templates bundled in the running binary. The list reflects
 actual bundled capability, not a future roadmap.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, _ = fmt.Fprintf(cmd.OutOrStderr(), "devopsgen list: not yet implemented (Phase 6)\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "Stacks:\n  go, nodejs\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "App types:\n  binary (Go), express, nextjs, vite, nestjs, generic (Node.js)\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "CI providers:\n  github-actions\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "Registries:\n  dockerhub, ghcr\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "Templates: docker, github-actions, kubernetes\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "Template version: %s\n", templates.Version)
 			return nil
 		},
 	}
@@ -167,8 +250,14 @@ On the MVP the template version tracks the binary version. Development
 builds may report "dev" when a release version is unavailable.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "devopsgen dev (template: dev)\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "devopsgen dev (template: %s)\n", templates.Version)
 			return nil
 		},
 	}
+}
+
+func isArtifact(name string) bool {
+	return strings.HasSuffix(name, "Dockerfile") ||
+		strings.HasSuffix(name, ".yaml") ||
+		strings.HasSuffix(name, ".yml")
 }

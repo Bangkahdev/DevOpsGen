@@ -23,7 +23,7 @@ func newExitError(code int, err error) *exitError {
 }
 
 func (e *exitError) Error() string { return e.err.Error() }
-func (e *exitError) ExitCode() int  { return e.code }
+func (e *exitError) ExitCode() int { return e.code }
 
 // RunInit executes the full generation flow for the init command.
 func RunInit(flags *InitFlags) error {
