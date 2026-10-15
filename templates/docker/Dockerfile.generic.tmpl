@@ -1,0 +1,27 @@
+# Dockerfile for generic Node.js applications.
+# Build and startup commands are provided explicitly by the user.
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+{{if .BuildCmd}}RUN {{.BuildCmd}}{{end}}
+
+FROM node:20-alpine AS runtime
+
+WORKDIR /app
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/dist ./dist 2>/dev/null || true
+COPY --from=builder /app/*.js . 2>/dev/null || true
+
+EXPOSE {{.Port}}
+
+USER 1000:1000
+
+{{if .StartCmd}}CMD ["sh", "-c", "{{.StartCmd}}"]{{else}}CMD ["node", "server.js"]{{end}}
