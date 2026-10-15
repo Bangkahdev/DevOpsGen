@@ -20,6 +20,7 @@ import (
 	"devopsgen.dev/devopsgen/internal/output"
 	"devopsgen.dev/devopsgen/internal/templates"
 	"devopsgen.dev/devopsgen/internal/validator"
+	"devopsgen.dev/devopsgen/internal/wizard"
 )
 
 // NewRootCommand builds the root command and registers the MVP subcommands.
@@ -110,11 +111,33 @@ process runs headless and never waits for stdin.`,
 			if err != nil {
 				return newExitError(2, err)
 			}
+			// In an interactive terminal with incomplete configuration,
+			// launch the TUI wizard before generation.
+			if flags.Stack == "" && isInteractive() {
+				wcfg, werr := wizard.Run()
+				if werr != nil {
+					return newExitError(2, werr)
+				}
+				flags.Stack = string(wcfg.Stack)
+				flags.AppType = string(wcfg.AppType)
+				flags.BuildCmd = wcfg.BuildCmd
+				flags.TestCmd = wcfg.TestCmd
+				flags.StartCmd = wcfg.StartCmd
+			}
 			return RunInit(flags)
 		},
 	}
 	_ = AddInitFlags(cmd)
 	return cmd
+}
+
+// isInteractive reports whether stdin is a terminal.
+func isInteractive() bool {
+	info, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
 }
 
 func newDetectCommand() *cobra.Command {
