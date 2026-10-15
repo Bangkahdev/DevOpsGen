@@ -4,7 +4,7 @@ This document describes how to build, release, and verify DevOpsGen.
 
 ## Prerequisites
 
-- Go 1.22 or later
+- Go 1.24.2 or later
 - Git
 
 ## Build
@@ -44,7 +44,7 @@ Core engine benchmark (NFR-01):
 go test -bench=BenchmarkGenerate -benchtime=10x ./internal/generator/
 ```
 
-Reference machine (2026-10-16): Intel Core i7-14650HX, Go 1.22.12,
+Reference machine (2026-10-16): Intel Core i7-14650HX, Go 1.24.2,
 windows/amd64.
 
 | Benchmark              | ns/op | B/op   | allocs/op |

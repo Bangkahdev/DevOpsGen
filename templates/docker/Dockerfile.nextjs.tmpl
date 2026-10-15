@@ -1,26 +1,31 @@
 # Dockerfile for Next.js applications.
-# Assumes `next build` produces a standalone output when configured.
+# Runs `next start`, so production dependencies must be present at runtime.
 
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 COPY . .
+RUN mkdir -p public
 {{if .BuildCmd}}RUN {{.BuildCmd}}{{else}}RUN npm run build{{end}}
+RUN npm prune --omit=dev
 
 FROM node:20-alpine AS runtime
 
 WORKDIR /app
 
+ENV NODE_ENV=production
+
 COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public 2>/dev/null || true
+COPY --from=builder /app/public ./public
 
 EXPOSE {{.Port}}
 
 USER 1000:1000
 
-{{if .StartCmd}}CMD ["sh", "-c", "{{.StartCmd}}"]{{else}}CMD ["npx", "next", "start"]{{end}}
+{{if .StartCmd}}CMD ["sh", "-c", {{printf "%q" .StartCmd}}]{{else}}CMD ["npx", "next", "start", "-p", "{{.Port}}"]{{end}}

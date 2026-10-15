@@ -10,6 +10,8 @@ builds:
   - id: devopsgen
     binary: devopsgen
     main: ./cmd/devopsgen
+    env:
+      - CGO_ENABLED=0
     goos:
       - linux
       - darwin
@@ -19,23 +21,35 @@ builds:
       - arm64
     ldflags:
       - -s -w
+      - -X devopsgen.dev/devopsgen/internal/cli.version={{.Version}}
+      - -X devopsgen.dev/devopsgen/internal/cli.commit={{.Commit}}
+      - -X devopsgen.dev/devopsgen/internal/cli.date={{.Date}}
       - -X devopsgen.dev/devopsgen/internal/templates.Version={{.Version}}
 
 archives:
   - id: default
     name_template: "{{.ProjectName}}_{{.Version}}_{{.Os}}_{{.Arch}}"
-    format: tar.gz
+    formats:
+      - tar.gz
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
 
 checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{.Version}}-{{.Timestamp}}"
+  version_template: "{{ .Version }}-snapshot"
 
 changelog:
   sort: asc
   filters:
-    - exclude: "(^docs:)|(^test:)|(^chore:)|(^ci:)|(^build:)|(^refactor:)|(^style:)"
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "^build:"
+      - "^refactor:"
+      - "^style:"
