@@ -264,19 +264,7 @@ actual bundled capability, not a future roadmap.`,
 }
 
 func newVersionCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "version",
-		Short: "Print version information",
-		Long: `Print the application version and the bundled template version.
-
-On the MVP the template version tracks the binary version. Development
-builds may report "dev" when a release version is unavailable.`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintf(cmd.OutOrStdout(), "devopsgen dev (template: %s)\n", templates.Version)
-			return nil
-		},
-	}
+	return NewVersionCommand()
 }
 
 func isArtifact(name string) bool {
