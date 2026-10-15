@@ -1,0 +1,26 @@
+# Dockerfile for NestJS applications.
+# Build compiles to dist/; runtime executes the compiled output.
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+{{if .BuildCmd}}RUN {{.BuildCmd}}{{else}}RUN npm run build{{end}}
+
+FROM node:20-alpine AS runtime
+
+WORKDIR /app
+
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+
+EXPOSE {{.Port}}
+
+USER 1000:1000
+
+CMD ["node", "dist/main.js"]

@@ -1,0 +1,26 @@
+# Dockerfile for Next.js applications.
+# Assumes `next build` produces a standalone output when configured.
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+{{if .BuildCmd}}RUN {{.BuildCmd}}{{else}}RUN npm run build{{end}}
+
+FROM node:20-alpine AS runtime
+
+WORKDIR /app
+
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public 2>/dev/null || true
+
+EXPOSE {{.Port}}
+
+USER 1000:1000
+
+{{if .StartCmd}}CMD ["sh", "-c", "{{.StartCmd}}"]{{else}}CMD ["npx", "next", "start"]{{end}}
