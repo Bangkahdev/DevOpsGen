@@ -40,6 +40,7 @@ var healthPathRe = regexp.MustCompile(`^/([a-zA-Z0-9._~/-]+)?$`)
 var validAppTypes = map[StackType][]AppType{
 	StackGo:   {AppTypeBinary},
 	StackNode: {AppTypeExpress, AppTypeNextJS, AppTypeVite, AppTypeNestJS, AppTypeGeneric},
+	StackPy:   {AppTypeFastAPI, AppTypeDjango, AppTypeFlask, AppTypePyGeneric},
 }
 
 // ValidateConfig checks the full configuration contract.
@@ -47,7 +48,7 @@ func ValidateConfig(cfg Config) error {
 	if cfg.Stack == "" {
 		return errEmptyStack
 	}
-	if cfg.Stack != StackGo && cfg.Stack != StackNode {
+	if cfg.Stack != StackGo && cfg.Stack != StackNode && cfg.Stack != StackPy {
 		return errInvalidStack
 	}
 	if cfg.CI != CIGitHubActions {

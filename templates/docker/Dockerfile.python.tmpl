@@ -1,0 +1,33 @@
+# Dockerfile for Python applications.
+# Uses a virtualenv at /opt/venv so the runtime user (1000) can read
+# installed packages without relying on /root/.local.
+#
+FROM python:3.12-alpine AS builder
+
+WORKDIR /app
+
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+RUN python -m venv $VIRTUAL_ENV
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+FROM python:3.12-alpine AS runtime
+
+WORKDIR /app
+
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /app /app
+
+EXPOSE {{.Port}}
+
+USER 1000:1000
+
+{{if .StartCmd}}CMD ["sh", "-c", {{printf "%q" .StartCmd}}]{{else}}CMD ["python", "app.py"]{{end}}

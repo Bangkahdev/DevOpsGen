@@ -100,6 +100,8 @@ func dockerfileFor(cfg config.Config) string {
 	switch {
 	case cfg.Stack == config.StackGo:
 		return "docker/Dockerfile.go.tmpl"
+	case cfg.Stack == config.StackPy:
+		return "docker/Dockerfile.python.tmpl"
 	case cfg.AppType == config.AppTypeExpress:
 		return "docker/Dockerfile.express.tmpl"
 	case cfg.AppType == config.AppTypeNextJS:
