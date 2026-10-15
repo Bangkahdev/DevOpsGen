@@ -10,6 +10,7 @@ import (
 
 	"devopsgen.dev/devopsgen/internal/filesystem"
 	"devopsgen.dev/devopsgen/internal/generator"
+	"devopsgen.dev/devopsgen/internal/validator"
 )
 
 // exitError wraps an error with an explicit exit code.
@@ -37,6 +38,12 @@ func RunInit(flags *InitFlags) error {
 	if err != nil {
 		return newExitError(4, fmt.Errorf("generate: %w", err))
 	}
+	if result, err := validator.New().Validate(arts); err != nil || result != validator.ResultValid {
+		if err != nil {
+			return newExitError(4, fmt.Errorf("validate: %w", err))
+		}
+		return newExitError(4, fmt.Errorf("validate: result %s", result))
+	}
 
 	// Stage 5: filesystem plan and conflict check.
 	fs := &filesystem.RealFS{Root: cfg.OutputDir}
@@ -49,12 +56,9 @@ func RunInit(flags *InitFlags) error {
 		return newExitError(2, fmt.Errorf("plan: %w", err))
 	}
 
-	// Conflict without --force -> exit 3.
-	if len(plan.Conflicts) > 0 && !cfg.Generation.Force {
-		return newExitError(3, fmt.Errorf("conflict: %d file(s) would be overwritten without --force", len(plan.Conflicts)))
-	}
-
-	// Dry-run stops here and reports the plan.
+	// Dry-run stops here and reports the plan, including conflicts as
+	// "would replace" entries. Dry-run never writes, so conflicts must not
+	// block it even without --force.
 	if cfg.Generation.DryRun {
 		fmt.Fprintf(os.Stderr, "dry-run: would create %d file(s), replace %d file(s)\n",
 			len(plan.Create), len(plan.Replace))
@@ -64,7 +68,16 @@ func RunInit(flags *InitFlags) error {
 		for _, p := range plan.Replace {
 			fmt.Fprintf(os.Stderr, "  replace %s\n", p)
 		}
+		for _, p := range plan.Conflicts {
+			fmt.Fprintf(os.Stderr, "  conflict %s (would be replaced)\n", p)
+		}
 		return nil
+	}
+
+	// Conflict without --force -> exit 3. Only enforced when actually
+	// committing, never during dry-run.
+	if len(plan.Conflicts) > 0 && !cfg.Generation.Force {
+		return newExitError(3, fmt.Errorf("conflict: %d file(s) would be overwritten without --force", len(plan.Conflicts)))
 	}
 
 	// Stage 6: backup and commit.
