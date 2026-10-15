@@ -77,6 +77,13 @@ func (e *engine) validateDockerfile(a output.Artifact) error {
 	if strings.Contains(s, "docker login") {
 		return fmt.Errorf("validator: %s contains credential login in image build", a.Path)
 	}
+	for _, line := range strings.Split(s, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if (strings.HasPrefix(trimmed, "COPY ") || strings.HasPrefix(trimmed, "ADD ")) &&
+			(strings.Contains(trimmed, "2>/dev/null") || strings.Contains(trimmed, "||") || strings.Contains(trimmed, "&&")) {
+			return fmt.Errorf("validator: %s contains shell syntax in %s instruction", a.Path, strings.Fields(trimmed)[0])
+		}
+	}
 	return nil
 }
 
@@ -116,6 +123,9 @@ func (e *engine) validateWorkflow(a output.Artifact) error {
 		if !strings.Contains(s, want) {
 			return fmt.Errorf("validator: %s missing %q", a.Path, want)
 		}
+	}
+	if strings.Contains(s, "[[") || strings.Contains(s, "{{.") {
+		return fmt.Errorf("validator: %s contains unrendered template syntax", a.Path)
 	}
 	if strings.Contains(s, "github.sha") {
 		return nil
