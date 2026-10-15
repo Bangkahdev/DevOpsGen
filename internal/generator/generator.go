@@ -108,6 +108,8 @@ func dockerfileFor(cfg config.Config) string {
 		return "docker/Dockerfile.vite.tmpl"
 	case cfg.AppType == config.AppTypeNestJS:
 		return "docker/Dockerfile.nestjs.tmpl"
+	case cfg.Stack == config.StackPython:
+		return "docker/Dockerfile.python.tmpl"
 	default:
 		return "docker/Dockerfile.generic.tmpl"
 	}

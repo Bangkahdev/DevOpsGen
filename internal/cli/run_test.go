@@ -33,6 +33,32 @@ func TestRunInit_EndToEnd(t *testing.T) {
 	}
 }
 
+func TestRunInit_PythonFastAPI(t *testing.T) {
+	dir := t.TempDir()
+	flags := &InitFlags{
+		Stack:     "python",
+		AppType:   "fastapi",
+		CI:        "github-actions",
+		Registry:  "ghcr",
+		Image:     "bangkah/api",
+		Port:      8000,
+		StartCmd:  "uvicorn main:app",
+		Tag:       "v1",
+		K8s:       true,
+		OutputDir: dir,
+	}
+	if err := RunInit(flags); err != nil {
+		t.Fatalf("runInit: %v", err)
+	}
+	df, err := os.ReadFile(filepath.Join(dir, "Dockerfile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(df), "python:3.12-slim") {
+		t.Fatal("Dockerfile missing python:3.12-slim")
+	}
+}
+
 func TestRunInit_ConflictExit3(t *testing.T) {
 	dir := t.TempDir()
 	// Pre-create Dockerfile to force a conflict.
