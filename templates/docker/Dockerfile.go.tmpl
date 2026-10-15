@@ -1,16 +1,26 @@
 # Dockerfile for Go applications (multi-stage build).
 # This template is deterministic: no env values are injected at runtime.
+# The binary is always built with `go build` from the project root.
+#
+# GO_VERSION must be >= the `go` directive in your go.mod. Override it with:
+#   docker build --build-arg GO_VERSION=1.25 .
+# GOTOOLCHAIN=auto lets Go fetch a newer toolchain if go.mod still requires
+# one (needs network access during the build).
 
-FROM golang:1.22-alpine AS builder
+ARG GO_VERSION=1.24
+FROM golang:${GO_VERSION}-alpine AS builder
+
+ARG TARGETARCH
+ENV GOTOOLCHAIN=auto
 
 WORKDIR /src
 
-COPY go.mod go.sum ./
+COPY go.mod go.sum* ./
 RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
     go build -ldflags="-s -w" -o /out/server .
 
 FROM scratch
