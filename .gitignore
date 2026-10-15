@@ -24,3 +24,6 @@ out.log
 
 # Local template overrides
 templates/local/
+
+# Generated output
+/dist/
