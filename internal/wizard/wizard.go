@@ -49,7 +49,7 @@ func New() Model {
 	m := Model{
 		step:    StepDetect,
 		input:   textinput.New(),
-		choices: []string{"go", "nodejs"},
+		choices: []string{"go", "nodejs", "python"},
 	}
 	m.input.Placeholder = "port"
 	m.input.CharLimit = 5

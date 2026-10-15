@@ -1,0 +1,33 @@
+# Dockerfile for Python applications.
+# Supports FastAPI, Django, Flask, and generic Python apps.
+# Build and startup commands are resolved per SRS 4.2 and are not
+# executed by DevOpsGen -- they are written into this file for the
+# user to run.
+
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+
+COPY requirements*.txt ./
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+COPY . .
+
+{{if .BuildCmd}}RUN {{.BuildCmd}}{{end}}
+
+FROM python:3.12-slim AS runtime
+
+WORKDIR /app
+
+COPY --from=builder /root/.local /root/.local
+COPY --from=builder /app /app
+
+ENV PATH=/root/.local/bin:$PATH
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE {{.Port}}
+
+USER 1000:1000
+
+{{if .StartCmd}}CMD ["sh", "-c", "{{.StartCmd}}"]{{else}}CMD ["python", "main.py"]{{end}}
