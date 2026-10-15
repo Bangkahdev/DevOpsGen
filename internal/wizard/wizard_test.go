@@ -65,17 +65,17 @@ func TestViewSummary(t *testing.T) {
 	m := New()
 	m.step = StepSummary
 	m.cfg = config.Config{
-		Stack:     config.StackGo,
-		AppType:   config.AppTypeBinary,
-		CI:        config.CIGitHubActions,
-		Registry:  config.RegistryDockerHub,
-		Image:     "bangkah/my-app",
-		Port:      8080,
-		BuildCmd:  "go build",
-		TestCmd:   "go test",
-		StartCmd:  "./server",
-		Tag:       "v1",
-		K8s:       config.K8sOptions{Enabled: true},
+		Stack:    config.StackGo,
+		AppType:  config.AppTypeBinary,
+		CI:       config.CIGitHubActions,
+		Registry: config.RegistryDockerHub,
+		Image:    "bangkah/my-app",
+		Port:     8080,
+		BuildCmd: "go build",
+		TestCmd:  "go test",
+		StartCmd: "./server",
+		Tag:      "v1",
+		K8s:      config.K8sOptions{Enabled: true},
 	}
 	v := m.view()
 	for _, want := range []string{"stack:", "go", "app-type:", "binary", "image:", "bangkah/my-app", "port:", "8080"} {

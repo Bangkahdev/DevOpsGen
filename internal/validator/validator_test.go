@@ -1,7 +1,6 @@
 package validator
 
 import (
-	"strings"
 	"testing"
 
 	"devopsgen.dev/devopsgen/internal/output"
@@ -155,7 +154,16 @@ func TestValidateResultStrings(t *testing.T) {
 	if ResultValid != 0 || ResultInvalid != 1 || ResultExternalSkipped != 2 {
 		t.Fatal("result constants mismatch")
 	}
-	if strings.TrimSpace(ResultValid.String()) == "" {
-		t.Fatal("ResultValid should have a string form")
+	if ResultValid.String() != "valid" {
+		t.Fatalf("expected valid, got %q", ResultValid.String())
+	}
+	if ResultInvalid.String() != "invalid" {
+		t.Fatalf("expected invalid, got %q", ResultInvalid.String())
+	}
+	if ResultExternalSkipped.String() != "external_skipped" {
+		t.Fatalf("expected external_skipped, got %q", ResultExternalSkipped.String())
+	}
+	if Result(99).String() != "unknown" {
+		t.Fatalf("expected unknown, got %q", Result(99).String())
 	}
 }

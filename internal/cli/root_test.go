@@ -179,3 +179,42 @@ func TestExitError(t *testing.T) {
 		t.Fatalf("exitError: %v %d", ee.Error(), ee.ExitCode())
 	}
 }
+
+func TestNewRootCommand(t *testing.T) {
+	root := NewRootCommand()
+	if root == nil {
+		t.Fatal("NewRootCommand returned nil")
+	}
+
+	// Test executing "version" subcommand through root
+	buf := new(strings.Builder)
+	root.SetOut(buf)
+	root.SetArgs([]string{"version"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("root execute version: %v", err)
+	}
+	if !strings.Contains(buf.String(), "devopsgen") {
+		t.Fatalf("expected version output, got %q", buf.String())
+	}
+
+	// Test executing "list" subcommand through root
+	buf.Reset()
+	root.SetOut(buf)
+	root.SetArgs([]string{"list"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("root execute list: %v", err)
+	}
+	if !strings.Contains(buf.String(), "Go") {
+		t.Fatalf("expected list output, got %q", buf.String())
+	}
+}
+
+func TestExitVersion(t *testing.T) {
+	// Call ExitVersion to exercise stdout printing helper
+	ExitVersion()
+}
+
+func TestIsInteractive(t *testing.T) {
+	// Exercise isInteractive helper
+	_ = isInteractive()
+}

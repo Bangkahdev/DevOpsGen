@@ -109,6 +109,46 @@ func TestDetect_NodeNoLockfile(t *testing.T) {
 	}
 }
 
+func TestDetectionResult_HasHelpers(t *testing.T) {
+	r := DetectionResult{Stack: "nodejs", StartCmd: "node s.js", BuildCmd: "npm run build", TestCmd: "jest"}
+	if !r.HasStart() {
+		t.Fatal("HasStart should be true for nodejs with start cmd")
+	}
+	if !r.HasBuild() {
+		t.Fatal("HasBuild should be true")
+	}
+	if !r.HasTest() {
+		t.Fatal("HasTest should be true")
+	}
+
+	empty := DetectionResult{Stack: "go"}
+	if empty.HasStart() {
+		t.Fatal("HasStart should be false for go")
+	}
+	if empty.HasBuild() {
+		t.Fatal("HasBuild should be false when empty")
+	}
+	if empty.HasTest() {
+		t.Fatal("HasTest should be false when empty")
+	}
+}
+
+func TestDetect_NodeYarnLockfile(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "package.json", `{"scripts":{"start":"node s.js"},"dependencies":{"express":"^4"}}`)
+	write(t, dir, "yarn.lock", "# yarn lockfile v1\n")
+	r, err := New().Detect(dir)
+	if err != nil {
+		t.Fatalf("detect: %v", err)
+	}
+	if r.Lockfile != "yarn.lock" {
+		t.Fatalf("expected yarn.lock, got %q", r.Lockfile)
+	}
+	if r.PackageManager != "yarn" {
+		t.Fatalf("expected yarn, got %q", r.PackageManager)
+	}
+}
+
 func contains(s []string, v string) bool {
 	for _, x := range s {
 		if x == v {
