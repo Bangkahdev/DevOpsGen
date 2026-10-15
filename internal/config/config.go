@@ -8,8 +8,9 @@ package config
 type StackType string
 
 const (
-	StackGo   StackType = "go"
-	StackNode StackType = "nodejs"
+	StackGo     StackType = "go"
+	StackNode   StackType = "nodejs"
+	StackPython StackType = "python"
 )
 
 // AppType identifies the application shape within a stack.
@@ -21,7 +22,10 @@ const (
 	AppTypeNextJS  AppType = "nextjs"  // Node.js
 	AppTypeVite    AppType = "vite"    // Node.js
 	AppTypeNestJS  AppType = "nestjs"  // Node.js
-	AppTypeGeneric AppType = "generic" // Node.js
+	AppTypeGeneric AppType = "generic" // Node.js / Python
+	AppTypeFastAPI AppType = "fastapi" // Python
+	AppTypeDjango  AppType = "django"  // Python
+	AppTypeFlask   AppType = "flask"   // Python
 )
 
 // CIProvider identifies a supported CI/CD provider.

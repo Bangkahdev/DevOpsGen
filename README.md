@@ -7,17 +7,18 @@ explicit configuration.
 ## Features
 
 - Interactive TUI wizard and non-interactive headless modes.
-- Stack detection for Go and Node.js.
+- Stack detection for Go, Node.js, and Python.
 - Deterministic output for the same binary version and configuration.
 - Safe filesystem behavior: no-overwrite by default, dry-run, explicit force,
   backup, and best-effort rollback.
 - Credential-free core engine: no network access or registry credentials
   required for generation or internal validation.
 
-## Supported stacks (MVP)
+## Supported stacks
 
 - Go (`binary`)
 - Node.js: Express, Next.js, Vite, NestJS, generic
+- Python: FastAPI, Django, Flask, generic
 
 ## Installation
 
