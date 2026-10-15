@@ -1,0 +1,104 @@
+// Package cli provides flag definitions and parsing for the init command.
+//
+// Flag parsing maps user-supplied values onto the config.Config model and
+// runs the same validation the core engine uses. It never touches the
+// filesystem, network, or credentials.
+package cli
+
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/spf13/cobra"
+
+	"devopsgen.dev/devopsgen/internal/config"
+)
+
+// InitFlags holds every user-supplied parameter for `devopsgen init`.
+type InitFlags struct {
+	Stack       string
+	AppType     string
+	CI          string
+	Registry    string
+	Image       string
+	Port        int
+	BuildCmd    string
+	TestCmd     string
+	StartCmd    string
+	Tag         string
+	K8s         bool
+	Ingress     bool
+	IngressHost string
+	HealthPath  string
+	OutputDir   string
+	Force       bool
+	DryRun      bool
+}
+
+// AddInitFlags registers all init flags on the given command.
+func AddInitFlags(cmd *cobra.Command) *InitFlags {
+	f := cmd.Flags()
+	flags := &InitFlags{}
+	f.StringVar(&flags.Stack, "stack", "", "project stack: go or nodejs")
+	f.StringVar(&flags.AppType, "app-type", "", "application type (see devopsgen list)")
+	f.StringVar(&flags.CI, "ci", "github-actions", "CI provider")
+	f.StringVar(&flags.Registry, "registry", "dockerhub", "container registry: dockerhub or ghcr")
+	f.StringVar(&flags.Image, "image", "", "image repository as namespace/repository")
+	f.IntVar(&flags.Port, "port", 0, "application port (1-65535)")
+	f.StringVar(&flags.BuildCmd, "build-cmd", "", "build command")
+	f.StringVar(&flags.TestCmd, "test-cmd", "", "test command")
+	f.StringVar(&flags.StartCmd, "start-cmd", "", "startup command")
+	f.StringVar(&flags.Tag, "tag", "", "additional image tag alias (default latest)")
+	f.BoolVar(&flags.K8s, "k8s", true, "generate Kubernetes manifests")
+	f.BoolVar(&flags.Ingress, "ingress", false, "enable Kubernetes Ingress")
+	f.StringVar(&flags.IngressHost, "ingress-host", "", "Ingress hostname (RFC 1123)")
+	f.StringVar(&flags.HealthPath, "health-path", "", "HTTP health probe path")
+	f.StringVar(&flags.OutputDir, "output-dir", ".", "output directory")
+	f.BoolVar(&flags.Force, "force", false, "overwrite existing regular files")
+	f.BoolVar(&flags.DryRun, "dry-run", false, "simulate without writing")
+	return flags
+}
+
+// ToConfig converts parsed flags into a validated Config.
+// Returns an error when a required parameter is missing or invalid (exit 2).
+func (f *InitFlags) ToConfig() (config.Config, error) {
+	cfg := config.Config{
+		Stack:      config.StackType(f.Stack),
+		AppType:    config.AppType(f.AppType),
+		CI:         config.CIProvider(f.CI),
+		Registry:   config.Registry(f.Registry),
+		Image:      f.Image,
+		Port:       f.Port,
+		BuildCmd:   f.BuildCmd,
+		TestCmd:    f.TestCmd,
+		StartCmd:   f.StartCmd,
+		Tag:        f.Tag,
+		OutputDir:  f.OutputDir,
+		Generation: config.GenerationOptions{Force: f.Force, DryRun: f.DryRun},
+	}
+	cfg.K8s = config.K8sOptions{
+		Enabled:     f.K8s,
+		Ingress:     f.Ingress,
+		IngressHost: f.IngressHost,
+		HealthPath:  f.HealthPath,
+	}
+
+	if cfg.Stack == "" {
+		return cfg, fmt.Errorf("--stack is required (go or nodejs)")
+	}
+	if err := config.ValidateConfig(cfg); err != nil {
+		return cfg, err
+	}
+	if err := config.ValidateOutputDir(cfg.OutputDir); err != nil {
+		return cfg, err
+	}
+	return cfg, nil
+}
+
+// ParsePort is a helper used by tests to exercise the flag binding path.
+func ParsePort(s string) (int, error) {
+	if s == "" {
+		return 0, nil
+	}
+	return strconv.Atoi(s)
+}
