@@ -44,7 +44,7 @@ func TestNewModel(t *testing.T) {
 	if m.step != StepDetect {
 		t.Fatalf("step: %v", m.step)
 	}
-	if len(m.choices) != 2 {
+	if len(m.choices) != 3 {
 		t.Fatalf("choices: %v", m.choices)
 	}
 	if m.input.Placeholder != "port" {
@@ -99,7 +99,7 @@ func TestViewStack(t *testing.T) {
 	m.step = StepStack
 	m.cfg.Stack = config.StackGo
 	v := m.view()
-	if !strings.Contains(v, "go") || !strings.Contains(v, "nodejs") {
+	if !strings.Contains(v, "go") || !strings.Contains(v, "nodejs") || !strings.Contains(v, "python") {
 		t.Fatalf("stack view should list stacks:\n%s", v)
 	}
 }

@@ -31,3 +31,4 @@ EXPOSE {{.Port}}
 USER 1000:1000
 
 {{if .StartCmd}}CMD ["sh", "-c", {{printf "%q" .StartCmd}}]{{else}}CMD ["python", "app.py"]{{end}}
+

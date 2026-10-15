@@ -14,7 +14,7 @@ import (
 
 var (
 	errEmptyStack        = errors.New("stack is required")
-	errInvalidStack      = errors.New("stack must be 'go' or 'nodejs'")
+	errInvalidStack      = errors.New("stack must be 'go', 'nodejs', or 'python'")
 	errInvalidCI         = errors.New("ci must be 'github-actions'")
 	errInvalidRegistry   = errors.New("registry must be 'dockerhub' or 'ghcr'")
 	errInvalidImage      = errors.New("image must be 'namespace/repository' without host or tag")
