@@ -10,6 +10,6 @@ import (
 func main() {
 	root := cli.NewRootCommand()
 	if err := root.Execute(); err != nil {
-		os.Exit(1)
+		os.Exit(cli.MapExitCode(err))
 	}
 }

@@ -108,21 +108,20 @@ func validateHostname(host string) error {
 	return nil
 }
 
-// ValidateOutputDir checks that the output directory is a safe, non-traversal path.
+// ValidateOutputDir checks that the output directory is a safe path.
+// Absolute paths are accepted (the target root may legitimately be
+// absolute), but traversal outside the target is rejected.
 func ValidateOutputDir(dir string) error {
 	if strings.TrimSpace(dir) == "" {
 		return errors.New("output-dir is required")
 	}
-	// Reject absolute paths on both Unix and Windows conventions.
-	if filepath.IsAbs(dir) || strings.HasPrefix(dir, "/") || strings.HasPrefix(dir, "\\") {
-		return errors.New("output-dir must be a relative path")
-	}
 	clean := filepath.Clean(dir)
+	// Reject traversal that escapes the target root.
 	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || strings.HasPrefix(clean, "../") {
 		return errors.New("output-dir must not escape the target directory")
 	}
-	// Reject any embedded traversal that resolves above the root.
-	if strings.Contains(clean, string(filepath.Separator)+"..") {
+	// Reject embedded traversal segments.
+	if strings.Contains(clean, string(filepath.Separator)+".." + string(filepath.Separator)) {
 		return errors.New("output-dir must not escape the target directory")
 	}
 	return nil

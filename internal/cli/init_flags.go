@@ -102,3 +102,27 @@ func ParsePort(s string) (int, error) {
 	}
 	return strconv.Atoi(s)
 }
+
+// readInitFlags collects the parsed init flag values from the command.
+func readInitFlags(cmd *cobra.Command) (*InitFlags, error) {
+	flags := &InitFlags{}
+	f := cmd.Flags()
+	flags.Stack, _ = f.GetString("stack")
+	flags.AppType, _ = f.GetString("app-type")
+	flags.CI, _ = f.GetString("ci")
+	flags.Registry, _ = f.GetString("registry")
+	flags.Image, _ = f.GetString("image")
+	flags.Port, _ = f.GetInt("port")
+	flags.BuildCmd, _ = f.GetString("build-cmd")
+	flags.TestCmd, _ = f.GetString("test-cmd")
+	flags.StartCmd, _ = f.GetString("start-cmd")
+	flags.Tag, _ = f.GetString("tag")
+	flags.K8s, _ = f.GetBool("k8s")
+	flags.Ingress, _ = f.GetBool("ingress")
+	flags.IngressHost, _ = f.GetString("ingress-host")
+	flags.HealthPath, _ = f.GetString("health-path")
+	flags.OutputDir, _ = f.GetString("output-dir")
+	flags.Force, _ = f.GetBool("force")
+	flags.DryRun, _ = f.GetBool("dry-run")
+	return flags, nil
+}
