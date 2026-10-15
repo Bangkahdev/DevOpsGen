@@ -30,6 +30,9 @@ jobs:
 
       - name: gofmt check
         run: |
+          # Normalize CRLF -> LF before gofmt, since the repo is authored
+          # on Windows and gofmt on the Linux runner expects LF.
+          find . -name '*.go' -type f -exec sed -i 's/\r$//' {} +
           fmt_out=$(gofmt -l .)
           if [ -n "$fmt_out" ]; then
             echo "gofmt issues in:"
