@@ -220,9 +220,17 @@ func (t templateData) BuildOrDefault() string {
 	case config.AppTypeGeneric:
 		return ""
 	case config.AppTypeBinary:
-		return "go build -ldflags=\"-s -w\" -o /out/server ."
+		return "go build -ldflags=\"-s -w\" -o /out/server " + t.buildPath()
 	}
 	return ""
+}
+
+// buildPath returns the configured build path, defaulting to the project root.
+func (t templateData) buildPath() string {
+	if t.Config.BuildPath != "" {
+		return t.Config.BuildPath
+	}
+	return "."
 }
 
 // StartOrDefault returns the startup command: explicit value or default.

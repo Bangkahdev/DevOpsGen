@@ -24,6 +24,7 @@ type InitFlags struct {
 	Image       string
 	Port        int
 	BuildCmd    string
+	BuildPath   string
 	TestCmd     string
 	StartCmd    string
 	Tag         string
@@ -47,6 +48,7 @@ func AddInitFlags(cmd *cobra.Command) *InitFlags {
 	f.StringVar(&flags.Image, "image", "", "image repository as namespace/repository")
 	f.IntVar(&flags.Port, "port", 0, "application port (1-65535)")
 	f.StringVar(&flags.BuildCmd, "build-cmd", "", "build command")
+	f.StringVar(&flags.BuildPath, "build-path", ".", "Go package path to build inside the container (default .)")
 	f.StringVar(&flags.TestCmd, "test-cmd", "", "test command")
 	f.StringVar(&flags.StartCmd, "start-cmd", "", "startup command")
 	f.StringVar(&flags.Tag, "tag", "", "additional image tag alias (default latest)")
@@ -71,6 +73,7 @@ func (f *InitFlags) ToConfig() (config.Config, error) {
 		Image:      f.Image,
 		Port:       f.Port,
 		BuildCmd:   f.BuildCmd,
+		BuildPath:  f.BuildPath,
 		TestCmd:    f.TestCmd,
 		StartCmd:   f.StartCmd,
 		Tag:        f.Tag,
@@ -155,6 +158,7 @@ func readInitFlags(cmd *cobra.Command) (*InitFlags, error) {
 	flags.Image, _ = f.GetString("image")
 	flags.Port, _ = f.GetInt("port")
 	flags.BuildCmd, _ = f.GetString("build-cmd")
+	flags.BuildPath, _ = f.GetString("build-path")
 	flags.TestCmd, _ = f.GetString("test-cmd")
 	flags.StartCmd, _ = f.GetString("start-cmd")
 	flags.Tag, _ = f.GetString("tag")

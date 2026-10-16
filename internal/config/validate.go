@@ -25,6 +25,7 @@ var (
 	errInvalidHealthPath = errors.New("health-path must be a valid HTTP path")
 	errInvalidCommand    = errors.New("command must be a single line without control characters")
 	errInvalidTag        = errors.New("tag is invalid: max 128 chars, no whitespace, newline, or shell/YAML metacharacters")
+	errInvalidBuildPath  = errors.New("build-path must be a safe relative path without traversal")
 )
 
 // RFC 1123 hostname: lowercase labels of 1-63 chars, alnum and '-'.
@@ -39,6 +40,10 @@ var ImageRe = imageRe
 
 // healthPathRe enforces a rooted HTTP path.
 var healthPathRe = regexp.MustCompile(`^/([a-zA-Z0-9._~/-]+)?$`)
+
+// buildPathRe enforces a safe relative filesystem path: no leading slash,
+// no traversal segments, only safe characters.
+var buildPathRe = regexp.MustCompile(`^([A-Za-z0-9._~-]+([/\\][A-Za-z0-9._~-]+)*)?$`)
 
 // HealthPathRe is the exported health path validation regex.
 var HealthPathRe = healthPathRe
@@ -101,7 +106,36 @@ func ValidateConfig(cfg Config) error {
 	if cfg.K8s.HealthPath != "" && !healthPathRe.MatchString(cfg.K8s.HealthPath) {
 		return errInvalidHealthPath
 	}
+	if err := validateBuildPath(cfg.BuildPath); err != nil {
+		return fmt.Errorf("build-path: %w", err)
+	}
 	return nil
+}
+
+// validateBuildPath ensures BuildPath is a safe relative path (default ".").
+func validateBuildPath(path string) error {
+	if path == "" {
+		return nil
+	}
+	clean := filepath.Clean(path)
+	if clean == "." {
+		return nil
+	}
+	if !buildPathRe.MatchString(path) {
+		return errInvalidBuildPath
+	}
+	// Reject traversal segments.
+	for _, seg := range strings.Split(path, string(filepath.Separator)) {
+		if seg == ".." {
+			return errInvalidBuildPath
+		}
+	}
+	return nil
+}
+
+// ValidateBuildPath is the exported form of validateBuildPath.
+func ValidateBuildPath(path string) error {
+	return validateBuildPath(path)
 }
 
 // ValidateTag checks that a tag value is safe for use in shell commands and

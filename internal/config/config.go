@@ -58,16 +58,20 @@ type GenerationOptions struct {
 // Field validation happens before rendering; required fields are enforced
 // per the SRS 4.1 parameter matrix.
 type Config struct {
-	Stack      StackType
-	AppType    AppType
-	CI         CIProvider
-	Registry   Registry
-	Image      string // namespace/repository, no registry host, no tag
-	Port       int
-	BuildCmd   string
-	TestCmd    string
-	StartCmd   string
-	Tag        string // additional alias; default "latest"
+	Stack    StackType
+	AppType  AppType
+	CI       CIProvider
+	Registry Registry
+	Image    string // namespace/repository, no registry host, no tag
+	Port     int
+	BuildCmd string
+	TestCmd  string
+	StartCmd string
+	Tag      string // additional alias; default "latest"
+	// BuildPath is the Go package path passed to `go build` in the Dockerfile.
+	// Defaults to "." (project root). Set to "./cmd/..." when main lives in a
+	// subdirectory.
+	BuildPath  string
 	K8s        K8sOptions
 	OutputDir  string
 	Generation GenerationOptions
