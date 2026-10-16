@@ -48,7 +48,7 @@ type Model struct {
 	choiceIdx int
 	input     textinput.Model
 	width     int
-	height  int
+	height    int
 	quitting  bool
 	detected  bool
 }
@@ -260,7 +260,7 @@ func (m Model) View() string {
 	case StepDetect:
 		b.WriteString("Detecting project stack...\n")
 		if m.err != nil {
-			b.WriteString(errorStyle.Render("warning: " + m.err.Error()) + "\n")
+			b.WriteString(errorStyle.Render("warning: "+m.err.Error()) + "\n")
 		}
 		if m.detected {
 			b.WriteString(fmt.Sprintf("stack: %s\n", m.detect.Stack))

@@ -33,13 +33,13 @@ func (e *exitError) ExitCode() int { return e.code }
 // RunInit executes the full generation flow for the init command.
 //
 // Stage order (SRS 6.6, FR-16):
-//   1. Parsing flags and validasi nilai eksplisit          -> exit 2
-//   2. Deteksi stack bila diperlukan                       -> exit 5
-//   3. Penyelesaian + validasi config lengkap              -> exit 2
-//   4. Rendering seluruh artefak di memori                 -> (error -> 4)
-//   5. Validasi seluruh output                             -> exit 4
-//   6. Validasi path + rencana + konflik                   -> exit 2/3
-//   7. Backup + commit filesystem                          -> exit 1
+//  1. Parsing flags and validasi nilai eksplisit          -> exit 2
+//  2. Deteksi stack bila diperlukan                       -> exit 5
+//  3. Penyelesaian + validasi config lengkap              -> exit 2
+//  4. Rendering seluruh artefak di memori                 -> (error -> 4)
+//  5. Validasi seluruh output                             -> exit 4
+//  6. Validasi path + rencana + konflik                   -> exit 2/3
+//  7. Backup + commit filesystem                          -> exit 1
 func RunInit(flags *InitFlags) error {
 	// Stage 1: flag-based config (stack may be empty; resolved later).
 	cfg, err := flags.ToConfig()

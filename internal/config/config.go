@@ -8,8 +8,8 @@ package config
 type StackType string
 
 const (
-	StackGo     StackType = "go"
-	StackNode   StackType = "nodejs"
+	StackGo   StackType = "go"
+	StackNode StackType = "nodejs"
 )
 
 // AppType identifies the application shape within a stack.

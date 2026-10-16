@@ -48,8 +48,8 @@ var tagRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
 
 // validAppTypes maps each stack to its allowed app types (MVP: go and nodejs only).
 var validAppTypes = map[StackType][]AppType{
-	StackGo:     {AppTypeBinary},
-	StackNode:   {AppTypeExpress, AppTypeNextJS, AppTypeVite, AppTypeNestJS, AppTypeGeneric},
+	StackGo:   {AppTypeBinary},
+	StackNode: {AppTypeExpress, AppTypeNextJS, AppTypeVite, AppTypeNestJS, AppTypeGeneric},
 }
 
 // ValidateConfig checks the full configuration contract.

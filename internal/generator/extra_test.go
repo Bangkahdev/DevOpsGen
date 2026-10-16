@@ -9,8 +9,8 @@ import (
 
 func TestTemplateData_BuildOrDefault(t *testing.T) {
 	cases := []struct {
-		cfg    config.Config
-		want   string
+		cfg  config.Config
+		want string
 	}{
 		{cfg: config.Config{Stack: config.StackGo, AppType: config.AppTypeBinary}, want: "go build -ldflags=\"-s -w\" -o /out/server ."},
 		{cfg: config.Config{Stack: config.StackGo, AppType: config.AppTypeBinary, BuildCmd: "go build -o bin ."}, want: "go build -o bin ."},
@@ -30,8 +30,8 @@ func TestTemplateData_BuildOrDefault(t *testing.T) {
 
 func TestTemplateData_StartOrDefault(t *testing.T) {
 	cases := []struct {
-		cfg    config.Config
-		want   string
+		cfg  config.Config
+		want string
 	}{
 		{cfg: config.Config{Stack: config.StackGo, AppType: config.AppTypeBinary, Port: 8080}, want: "/server"},
 		{cfg: config.Config{Stack: config.StackGo, AppType: config.AppTypeBinary, Port: 8080, StartCmd: "./mybin"}, want: "./mybin"},
