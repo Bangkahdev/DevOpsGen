@@ -24,14 +24,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
-[[- if eq .Stack "go"]]
+[[if eq .Stack "go"]]
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version-file: go.mod
-[[- end]]
+[[end]]
 
-[[- if eq .Stack "nodejs"]]
+[[if eq .Stack "nodejs"]]
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -39,9 +39,9 @@ jobs:
 
       - name: Install dependencies
         run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
-[[- end]]
+[[end]]
 
-[[- if eq .Stack "python"]]
+[[if eq .Stack "python"]]
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -51,30 +51,30 @@ jobs:
         run: |
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install pytest
-[[- end]]
+[[end]]
 
-[[- if .TestCmd]]
+[[if .TestCmd]]
       - name: Test
         run: [[.TestCmd]]
-[[- else]]
+[[else]]
       - name: Test stage skipped
         run: echo "Test stage is not configured for this project. No test command was provided, so tests are intentionally not run."
-[[- end]]
+[[end]]
 
       - name: Build image
         run: |
           docker build -t [[.ImageRef]]:[[.Tag]] -t [[.ImageRef]]:${{ github.sha }} -f Dockerfile .
 
-[[- if eq .Registry "dockerhub"]]
+[[if eq .Registry "dockerhub"]]
       - name: Login to Docker Hub
         if: ${{ github.event_name != 'pull_request' }}
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-[[- end]]
+[[end]]
 
-[[- if eq .Registry "ghcr"]]
+[[if eq .Registry "ghcr"]]
       - name: Login to GHCR
         if: ${{ github.event_name != 'pull_request' }}
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772
@@ -82,7 +82,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-[[- end]]
+[[end]]
 
       - name: Push image
         if: ${{ github.event_name != 'pull_request' }}

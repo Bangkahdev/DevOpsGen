@@ -1,8 +1,10 @@
 # Dockerfile for Python applications.
-# Uses a virtualenv at /opt/venv so the runtime user (1000) can read
-# installed packages without relying on /root/.local.
-#
-FROM python:3.12-alpine AS builder
+# Supports FastAPI, Django, Flask, and generic Python apps.
+# Uses a virtualenv at /opt/venv on a slim base image so the runtime user
+# (1000) can read installed packages without relying on /root/.local.
+# Build and startup commands are resolved per SRS 4.2.
+
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
@@ -11,12 +13,14 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 RUN python -m venv $VIRTUAL_ENV
 
-COPY requirements.txt ./
+COPY requirements*.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-FROM python:3.12-alpine AS runtime
+{{if .BuildCmd}}RUN {{.BuildCmd}}{{end}}
+
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 

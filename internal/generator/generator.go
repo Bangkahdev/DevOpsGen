@@ -100,7 +100,7 @@ func dockerfileFor(cfg config.Config) string {
 	switch {
 	case cfg.Stack == config.StackGo:
 		return "docker/Dockerfile.go.tmpl"
-	case cfg.Stack == config.StackPy:
+	case cfg.Stack == config.StackPython:
 		return "docker/Dockerfile.python.tmpl"
 	case cfg.AppType == config.AppTypeExpress:
 		return "docker/Dockerfile.express.tmpl"
@@ -110,6 +110,8 @@ func dockerfileFor(cfg config.Config) string {
 		return "docker/Dockerfile.vite.tmpl"
 	case cfg.AppType == config.AppTypeNestJS:
 		return "docker/Dockerfile.nestjs.tmpl"
+	case cfg.Stack == config.StackPython:
+		return "docker/Dockerfile.python.tmpl"
 	default:
 		return "docker/Dockerfile.generic.tmpl"
 	}

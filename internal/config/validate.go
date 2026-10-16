@@ -14,7 +14,7 @@ import (
 
 var (
 	errEmptyStack        = errors.New("stack is required")
-	errInvalidStack      = errors.New("stack must be 'go' or 'nodejs'")
+	errInvalidStack      = errors.New("stack must be 'go', 'nodejs', or 'python'")
 	errInvalidCI         = errors.New("ci must be 'github-actions'")
 	errInvalidRegistry   = errors.New("registry must be 'dockerhub' or 'ghcr'")
 	errInvalidImage      = errors.New("image must be 'namespace/repository' without host or tag")
@@ -38,9 +38,9 @@ var healthPathRe = regexp.MustCompile(`^/([a-zA-Z0-9._~/-]+)?$`)
 
 // validAppTypes maps each stack to its allowed app types.
 var validAppTypes = map[StackType][]AppType{
-	StackGo:   {AppTypeBinary},
-	StackNode: {AppTypeExpress, AppTypeNextJS, AppTypeVite, AppTypeNestJS, AppTypeGeneric},
-	StackPy:   {AppTypeFastAPI, AppTypeDjango, AppTypeFlask, AppTypePyGeneric},
+	StackGo:     {AppTypeBinary},
+	StackNode:   {AppTypeExpress, AppTypeNextJS, AppTypeVite, AppTypeNestJS, AppTypeGeneric},
+	StackPython: {AppTypeFastAPI, AppTypeDjango, AppTypeFlask, AppTypeGeneric},
 }
 
 // ValidateConfig checks the full configuration contract.
@@ -48,7 +48,7 @@ func ValidateConfig(cfg Config) error {
 	if cfg.Stack == "" {
 		return errEmptyStack
 	}
-	if cfg.Stack != StackGo && cfg.Stack != StackNode && cfg.Stack != StackPy {
+	if cfg.Stack != StackGo && cfg.Stack != StackNode && cfg.Stack != StackPython {
 		return errInvalidStack
 	}
 	if cfg.CI != CIGitHubActions {
