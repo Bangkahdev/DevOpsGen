@@ -132,9 +132,35 @@ type templateData struct {
 }
 
 // Name derives a Kubernetes resource name from the image repository.
-// It is the last path segment of the configured image.
+// It is the last path segment of the configured image, sanitized for
+// Kubernetes naming rules (lowercase, alphanumeric, '-', '.'; max 253 chars).
 func (t templateData) Name() string {
-	return lastSegment(t.Config.Image)
+	return sanitizeK8sName(lastSegment(t.Config.Image))
+}
+
+// sanitizeK8sName converts a name to be Kubernetes-compatible:
+// lowercase, replace invalid characters with '-', trim leading/trailing non-alphanumeric.
+func sanitizeK8sName(s string) string {
+	s = strings.ToLower(s)
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '.' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+	out := b.String()
+	// Trim leading/trailing hyphens and dots.
+	out = strings.Trim(out, "-.")
+	if out == "" {
+		out = "app"
+	}
+	if len(out) > 253 {
+		out = out[:253]
+		out = strings.TrimRight(out, "-.")
+	}
+	return out
 }
 
 // ImageRef is exposed to templates as a top-level field for convenience.
@@ -181,13 +207,14 @@ func (t templateData) BuildOrDefault() string {
 	if t.Config.BuildCmd != "" {
 		return t.Config.BuildCmd
 	}
+	pm := t.packageManager()
 	switch t.Config.AppType {
 	case config.AppTypeNextJS:
-		return "npm run build"
+		return pm + " run build"
 	case config.AppTypeVite:
-		return "npm run build"
+		return pm + " run build"
 	case config.AppTypeNestJS:
-		return "npm run build"
+		return pm + " run build"
 	case config.AppTypeExpress:
 		return ""
 	case config.AppTypeGeneric:
@@ -203,31 +230,47 @@ func (t templateData) StartOrDefault() string {
 	if t.Config.StartCmd != "" {
 		return t.Config.StartCmd
 	}
+	pm := t.packageManager()
 	switch t.Config.AppType {
 	case config.AppTypeExpress:
-		return "node server.js"
+		return pm + " run start"
 	case config.AppTypeNextJS:
 		return "npx next start -p " + fmt.Sprintf("%d", t.Config.Port)
 	case config.AppTypeVite:
-		return "npx serve -s dist -l " + fmt.Sprintf("%d", t.Config.Port)
+		// Use Vite's built-in preview server instead of the `serve` package,
+		// which is not guaranteed to be a project dependency.
+		return pm + " run preview -- --port " + fmt.Sprintf("%d", t.Config.Port)
 	case config.AppTypeNestJS:
 		return "node dist/main.js"
 	case config.AppTypeGeneric:
-		return "node server.js"
+		return pm + " run start"
 	case config.AppTypeBinary:
 		return "/server"
 	}
 	return ""
 }
 
+// packageManager returns the package manager invocation prefix for Node.js.
+// Defaults to npm if none was detected or configured.
+func (t templateData) packageManager() string {
+	switch t.Config.PackageManager {
+	case "pnpm":
+		return "pnpm"
+	case "yarn":
+		return "yarn"
+	default:
+		return "npm"
+	}
+}
+
 // TestCmdForWorkflow returns the test command formatted for the workflow.
-// Node.js script names are wrapped with `npm run`; Go commands are used as-is.
+// Node.js script names are wrapped with the detected package manager; Go commands are used as-is.
 func (t templateData) TestCmdForWorkflow() string {
 	if t.Config.TestCmd == "" {
 		return ""
 	}
 	if t.Config.Stack == config.StackNode {
-		return "npm run " + t.Config.TestCmd
+		return t.packageManager() + " run " + t.Config.TestCmd
 	}
 	return t.Config.TestCmd
 }

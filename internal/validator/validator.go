@@ -38,6 +38,10 @@ func New() Validator {
 }
 
 // Validate runs all internal checks over the artifacts.
+//
+// Per-artifact validation runs first, followed by cross-resource
+// consistency checks (Service selector vs Deployment labels, Ingress
+// backend vs Service name, port consistency).
 func (e *engine) Validate(artifacts []output.Artifact) (Result, error) {
 	if len(artifacts) == 0 {
 		return ResultInvalid, errors.New("validator: no artifacts to validate")
@@ -47,6 +51,14 @@ func (e *engine) Validate(artifacts []output.Artifact) (Result, error) {
 		if err := e.validateArtifact(a); err != nil {
 			firstErr = errors.Join(firstErr, err)
 		}
+	}
+	if firstErr != nil {
+		return ResultInvalid, firstErr
+	}
+
+	// Cross-resource consistency checks.
+	if err := e.validateCrossResource(artifacts); err != nil {
+		firstErr = errors.Join(firstErr, err)
 	}
 	if firstErr != nil {
 		return ResultInvalid, firstErr
@@ -100,6 +112,178 @@ func parseYAMLMulti(content []byte) ([]map[string]any, error) {
 		return docs, nil
 	}
 	return docs, nil
+}
+
+// findArtifact returns the artifact with the given path, or nil.
+func findArtifact(artifacts []output.Artifact, path string) *output.Artifact {
+	for i := range artifacts {
+		if artifacts[i].Path == path {
+			return &artifacts[i]
+		}
+	}
+	return nil
+}
+
+// deploymentSelectorLabels returns the matchLabels from a Deployment artifact.
+func deploymentSelectorLabels(doc map[string]any) map[string]any {
+	spec, _ := doc["spec"].(map[string]any)
+	selector, _ := spec["selector"].(map[string]any)
+	matchLabels, _ := selector["matchLabels"].(map[string]any)
+	return matchLabels
+}
+
+// deploymentPodLabels returns the template labels from a Deployment artifact.
+func deploymentPodLabels(doc map[string]any) map[string]any {
+	spec, _ := doc["spec"].(map[string]any)
+	template, _ := spec["template"].(map[string]any)
+	tmplMetadata, _ := template["metadata"].(map[string]any)
+	labels, _ := tmplMetadata["labels"].(map[string]any)
+	return labels
+}
+
+// deploymentContainerPort returns the containerPort from a Deployment artifact.
+func deploymentContainerPort(doc map[string]any) int {
+	spec, _ := doc["spec"].(map[string]any)
+	template, _ := spec["template"].(map[string]any)
+	tmplSpec, _ := template["spec"].(map[string]any)
+	containers, _ := tmplSpec["containers"].([]any)
+	if len(containers) == 0 {
+		return 0
+	}
+	cmap, _ := containers[0].(map[string]any)
+	ports, _ := cmap["ports"].([]any)
+	if len(ports) == 0 {
+		return 0
+	}
+	portMap, _ := ports[0].(map[string]any)
+	containerPort, _ := portMap["containerPort"].(int)
+	return containerPort
+}
+
+// deploymentImage returns the container image from a Deployment artifact.
+func deploymentImage(doc map[string]any) string {
+	spec, _ := doc["spec"].(map[string]any)
+	template, _ := spec["template"].(map[string]any)
+	tmplSpec, _ := template["spec"].(map[string]any)
+	containers, _ := tmplSpec["containers"].([]any)
+	if len(containers) == 0 {
+		return ""
+	}
+	cmap, _ := containers[0].(map[string]any)
+	image, _ := cmap["image"].(string)
+	return image
+}
+
+// serviceSelector returns the selector from a Service artifact.
+func serviceSelector(doc map[string]any) map[string]any {
+	spec, _ := doc["spec"].(map[string]any)
+	selector, _ := spec["selector"].(map[string]any)
+	return selector
+}
+
+// servicePorts returns the ports from a Service artifact.
+func servicePorts(doc map[string]any) []any {
+	spec, _ := doc["spec"].(map[string]any)
+	ports, _ := spec["ports"].([]any)
+	return ports
+}
+
+// serviceTargetPort returns the first targetPort from a Service artifact.
+func serviceTargetPort(doc map[string]any) int {
+	ports := servicePorts(doc)
+	if len(ports) == 0 {
+		return 0
+	}
+	portMap, _ := ports[0].(map[string]any)
+	targetPort, _ := portMap["targetPort"].(int)
+	return targetPort
+}
+
+// ingressBackendServiceName returns the backend service name from an Ingress artifact.
+func ingressBackendServiceName(doc map[string]any) string {
+	spec, _ := doc["spec"].(map[string]any)
+	rules, _ := spec["rules"].([]any)
+	if len(rules) == 0 {
+		return ""
+	}
+	rule, _ := rules[0].(map[string]any)
+	http, _ := rule["http"].(map[string]any)
+	paths, _ := http["paths"].([]any)
+	if len(paths) == 0 {
+		return ""
+	}
+	path, _ := paths[0].(map[string]any)
+	backend, _ := path["backend"].(map[string]any)
+	svc, _ := backend["service"].(map[string]any)
+	name, _ := svc["name"].(string)
+	return name
+}
+
+// validateCrossResource checks consistency between Kubernetes artifacts.
+func (e *engine) validateCrossResource(artifacts []output.Artifact) error {
+	var firstErr error
+
+	dep := findArtifact(artifacts, "kubernetes/deployment.yaml")
+	svc := findArtifact(artifacts, "kubernetes/service.yaml")
+	ing := findArtifact(artifacts, "kubernetes/ingress.yaml")
+
+	if dep == nil || svc == nil {
+		return nil
+	}
+
+	depDocs, err := parseYAMLMulti(dep.Content)
+	if err != nil {
+		return err
+	}
+	if len(depDocs) == 0 {
+		return nil
+	}
+	depDoc := depDocs[0]
+
+	svcDocs, err := parseYAMLMulti(svc.Content)
+	if err != nil {
+		return err
+	}
+	if len(svcDocs) == 0 {
+		return nil
+	}
+	svcDoc := svcDocs[0]
+
+	// Service selector must match Deployment selector.matchLabels.
+	svcSelector := serviceSelector(svcDoc)
+	depSelector := deploymentSelectorLabels(depDoc)
+	for k, v := range depSelector {
+		sv, ok := svcSelector[k]
+		if !ok || sv != v {
+			firstErr = errors.Join(firstErr, fmt.Errorf("validator: Service selector %q does not match Deployment matchLabels %q", k, v))
+		}
+	}
+
+	// Service targetPort must match Deployment containerPort.
+	svcTargetPort := serviceTargetPort(svcDoc)
+	depContainerPort := deploymentContainerPort(depDoc)
+	if depContainerPort > 0 && svcTargetPort > 0 && svcTargetPort != depContainerPort {
+		firstErr = errors.Join(firstErr, fmt.Errorf("validator: Service targetPort %d does not match Deployment containerPort %d", svcTargetPort, depContainerPort))
+	}
+
+	// Ingress backend service must match Service name.
+	if ing != nil {
+		ingDocs, err := parseYAMLMulti(ing.Content)
+		if err != nil {
+			return err
+		}
+		if len(ingDocs) > 0 {
+			ingDoc := ingDocs[0]
+			ingBackend := ingressBackendServiceName(ingDoc)
+			svcMetadata, _ := svcDoc["metadata"].(map[string]any)
+			svcName, _ := svcMetadata["name"].(string)
+			if ingBackend != "" && ingBackend != svcName {
+				firstErr = errors.Join(firstErr, fmt.Errorf("validator: Ingress backend service %q does not match Service name %q", ingBackend, svcName))
+			}
+		}
+	}
+
+	return firstErr
 }
 
 func (e *engine) validateDockerfile(a output.Artifact) error {

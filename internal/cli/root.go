@@ -113,7 +113,7 @@ process runs headless and never waits for stdin.`,
 			}
 			// In an interactive terminal with incomplete configuration,
 			// launch the TUI wizard before generation.
-			if flags.Stack == "" && isInteractive() {
+			if flags.Stack == "" && isInteractiveFn() {
 				wcfg, werr := wizard.Run()
 				if werr != nil {
 					return newExitError(2, werr)
@@ -157,6 +157,10 @@ process runs headless and never waits for stdin.`,
 	_ = AddInitFlags(cmd)
 	return cmd
 }
+
+// isInteractiveFn reports whether stdin is a terminal. It is a package-level
+// variable so tests can override it.
+var isInteractiveFn = isInteractive
 
 // isInteractive reports whether stdin is a terminal.
 func isInteractive() bool {
@@ -252,7 +256,7 @@ func runValidate(dir string, out io.Writer) error {
 		if a.Path == "Dockerfile" {
 			required["Dockerfile"] = true
 		}
-		if a.Path == ".github/workflows/ci.yml" || strings.HasSuffix(a.Path, "ci.yml") {
+		if a.Path == ".github/workflows/ci.yml" {
 			required[".github/workflows/ci.yml"] = true
 		}
 	}
@@ -269,10 +273,14 @@ func runValidate(dir string, out io.Writer) error {
 	if err != nil {
 		return newExitError(4, fmt.Errorf("validate: %w", err))
 	}
-	if r != validator.ResultValid {
+	switch r {
+	case validator.ResultValid:
+		fmt.Fprintf(out, "Internal validation passed\n")
+	case validator.ResultExternalSkipped:
+		fmt.Fprintf(out, "Internal validation passed; external validation skipped\n")
+	default:
 		return newExitError(4, fmt.Errorf("validation failed: %s", r))
 	}
-	fmt.Fprintf(out, "Internal validation passed\n")
 	return nil
 }
 

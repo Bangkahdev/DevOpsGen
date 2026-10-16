@@ -84,8 +84,8 @@ func TestRunInit_NodeStartCmdDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !contains(string(df), "node server.js") {
-		t.Fatalf("Dockerfile should default to node server.js:\n%s", string(df))
+	if !contains(string(df), "npm run start") {
+		t.Fatalf("Dockerfile should default to npm run start:\n%s", string(df))
 	}
 }
 
@@ -107,8 +107,8 @@ func TestRunInit_ViteStartCmdDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !contains(string(df), "npx serve -s dist -l 8080") {
-		t.Fatalf("Dockerfile should use npx serve:\n%s", string(df))
+	if !contains(string(df), "npm run preview -- --port 8080") {
+		t.Fatalf("Dockerfile should use npm run preview:\n%s", string(df))
 	}
 }
 

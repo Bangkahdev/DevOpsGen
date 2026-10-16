@@ -136,6 +136,7 @@ func (m *MemFS) PlanBuild(artifacts map[string][]byte) (Plan, error) {
 			return Plan{}, fmt.Errorf("filesystem: stat %q: %w", clean, err)
 		}
 	}
+	sortStrings(p.Dirs)
 	return p, nil
 }
 
@@ -153,14 +154,24 @@ func (m *MemFS) Commit(p Plan) error {
 	var rollbackErrors []string
 
 	// Backup existing files before replacing.
-	for orig, backup := range p.Backup {
+	// Sort backup origins for deterministic rollback order.
+	backupOrigins := make([]string, 0, len(p.Backup))
+	for orig := range p.Backup {
+		backupOrigins = append(backupOrigins, orig)
+	}
+	sortStrings(backupOrigins)
+
+	for _, orig := range backupOrigins {
+		backup := p.Backup[orig]
 		if m.BackupErr != nil {
 			rollbackErrors = append(rollbackErrors, fmt.Sprintf("backup %q: %v", orig, m.BackupErr))
-			// Roll back any backups already made.
-			for o, b := range p.Backup {
+			// Roll back any backups already made (reverse order).
+			for i := len(backupOrigins) - 1; i >= 0; i-- {
+				o := backupOrigins[i]
 				if o == orig {
 					break
 				}
+				b := p.Backup[o]
 				if c, ok := m.files[b]; ok {
 					m.files[o] = c
 					delete(m.files, b)
@@ -184,8 +195,8 @@ func (m *MemFS) Commit(p Plan) error {
 	for _, dst := range p.Create {
 		if m.WriteErr != nil {
 			rollbackErrors = append(rollbackErrors, fmt.Sprintf("write %q: %v", dst, m.WriteErr))
-			m.rollbackCreateLocked(created)
 			m.rollbackReplaceLocked(p.Backup)
+			m.rollbackCreateLocked(created)
 			return fmt.Errorf("filesystem: write %q: %v; rollback errors: %v", dst, m.WriteErr, strings.Join(rollbackErrors, "; "))
 		}
 		m.mkdirAllLocked(filepath.Dir(dst))
@@ -197,8 +208,8 @@ func (m *MemFS) Commit(p Plan) error {
 	for _, dst := range p.Replace {
 		if m.WriteErr != nil {
 			rollbackErrors = append(rollbackErrors, fmt.Sprintf("write %q: %v", dst, m.WriteErr))
-			m.rollbackCreateLocked(created)
 			m.rollbackReplaceLocked(p.Backup)
+			m.rollbackCreateLocked(created)
 			return fmt.Errorf("filesystem: write %q: %v; rollback errors: %v", dst, m.WriteErr, strings.Join(rollbackErrors, "; "))
 		}
 		m.files[dst] = p.Files[dst]
@@ -224,7 +235,16 @@ func (m *MemFS) rollbackCreateLocked(paths []string) error {
 
 func (m *MemFS) rollbackReplaceLocked(backup map[string]string) error {
 	var first error
-	for orig, b := range backup {
+	// Sort backup keys for deterministic restore order.
+	origs := make([]string, 0, len(backup))
+	for orig := range backup {
+		origs = append(origs, orig)
+	}
+	sortStrings(origs)
+
+	for i := len(origs) - 1; i >= 0; i-- {
+		orig := origs[i]
+		b := backup[orig]
 		delete(m.files, orig)
 		if c, ok := m.files[b]; ok {
 			m.files[orig] = c

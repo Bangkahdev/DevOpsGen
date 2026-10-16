@@ -35,11 +35,11 @@ func TestTemplateData_StartOrDefault(t *testing.T) {
 	}{
 		{cfg: config.Config{Stack: config.StackGo, AppType: config.AppTypeBinary, Port: 8080}, want: "/server"},
 		{cfg: config.Config{Stack: config.StackGo, AppType: config.AppTypeBinary, Port: 8080, StartCmd: "./mybin"}, want: "./mybin"},
-		{cfg: config.Config{Stack: config.StackNode, AppType: config.AppTypeExpress, Port: 3000}, want: "node server.js"},
+		{cfg: config.Config{Stack: config.StackNode, AppType: config.AppTypeExpress, Port: 3000}, want: "npm run start"},
 		{cfg: config.Config{Stack: config.StackNode, AppType: config.AppTypeNextJS, Port: 3000}, want: "npx next start -p 3000"},
-		{cfg: config.Config{Stack: config.StackNode, AppType: config.AppTypeVite, Port: 8080}, want: "npx serve -s dist -l 8080"},
+		{cfg: config.Config{Stack: config.StackNode, AppType: config.AppTypeVite, Port: 8080}, want: "npm run preview -- --port 8080"},
 		{cfg: config.Config{Stack: config.StackNode, AppType: config.AppTypeNestJS, Port: 3000}, want: "node dist/main.js"},
-		{cfg: config.Config{Stack: config.StackNode, AppType: config.AppTypeGeneric, Port: 3000}, want: "node server.js"},
+		{cfg: config.Config{Stack: config.StackNode, AppType: config.AppTypeGeneric, Port: 3000}, want: "npm run start"},
 	}
 	for i, c := range cases {
 		td := templateData{Config: c.cfg}

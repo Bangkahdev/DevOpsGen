@@ -49,7 +49,7 @@ func RunInit(flags *InitFlags) error {
 
 	// Stage 2: stack detection when not provided via flags.
 	if cfg.Stack == "" {
-		if !isInteractive() {
+		if !isInteractiveFn() {
 			// Non-interactive: cannot prompt, fail with actionable error.
 			return newExitError(2, errors.New("stack is required; provide --stack or run in an interactive terminal"))
 		}
@@ -68,6 +68,7 @@ func RunInit(flags *InitFlags) error {
 		cfg.BuildCmd = result.BuildCmd
 		cfg.TestCmd = result.TestCmd
 		cfg.StartCmd = result.StartCmd
+		cfg.PackageManager = result.PackageManager
 	}
 
 	// Stage 3: full configuration validation after detection.
@@ -150,6 +151,7 @@ func ResolveConfig(cfg config.Config, det detector.Detector) (config.Config, err
 		cfg.BuildCmd = result.BuildCmd
 		cfg.TestCmd = result.TestCmd
 		cfg.StartCmd = result.StartCmd
+		cfg.PackageManager = result.PackageManager
 	}
 	if err := config.ValidateConfig(cfg); err != nil {
 		return cfg, err

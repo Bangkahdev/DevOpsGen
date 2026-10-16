@@ -140,6 +140,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cfg.BuildCmd = res.BuildCmd
 			m.cfg.TestCmd = res.TestCmd
 			m.cfg.StartCmd = res.StartCmd
+			m.cfg.PackageManager = res.PackageManager
 			// Set choice index based on detected stack.
 			for i, c := range m.choices {
 				if c == string(m.cfg.Stack) {

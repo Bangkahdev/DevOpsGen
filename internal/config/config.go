@@ -71,6 +71,8 @@ type Config struct {
 	K8s        K8sOptions
 	OutputDir  string
 	Generation GenerationOptions
+	// PackageManager is the detected or configured package manager (npm, pnpm, yarn).
+	PackageManager string
 }
 
 // DefaultTag is the default mutable alias published alongside the commit SHA.

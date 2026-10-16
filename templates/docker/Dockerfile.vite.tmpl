@@ -23,4 +23,4 @@ EXPOSE {{.Port}}
 
 USER 1000:1000
 
-CMD ["sh", "-c", "npx serve -s dist -l {{.Port}}"]
+CMD ["sh", "-c", {{printf "%q" .StartOrDefault}}]

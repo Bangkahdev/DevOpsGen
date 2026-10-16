@@ -1,9 +1,12 @@
 package wizard
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"devopsgen.dev/devopsgen/internal/config"
+	"devopsgen.dev/devopsgen/internal/detector"
 )
 
 func TestUpdate_Registry(t *testing.T) {
@@ -152,4 +155,136 @@ func stringsContains(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+func TestView_DetectWithError(t *testing.T) {
+	m := New()
+	m.step = StepDetect
+	m.err = errors.New("detection failed")
+	v := m.View()
+	if !strings.Contains(v, "detection failed") {
+		t.Fatalf("detect view should show error:\n%s", v)
+	}
+}
+
+func TestKeyMsg_String(t *testing.T) {
+	km := keyMsg("enter")
+	if km.String() != "enter" {
+		t.Fatalf("expected 'enter', got %q", km.String())
+	}
+}
+
+func TestUpdate_DetectionDone_NoStack(t *testing.T) {
+	m := New()
+	msg := detectionDone{
+		result: detector.DetectionResult{},
+	}
+	mm, _ := m.Update(msg)
+	m = mm.(Model)
+	if m.step != StepStack {
+		t.Fatalf("expected step Stack, got %v", m.step)
+	}
+}
+
+func TestUpdate_PortEmptyExtra(t *testing.T) {
+	m := New()
+	m.step = StepPort
+	m.input.SetValue("")
+	mm, _ := m.Update(keyMsg("enter"))
+	m = mm.(Model)
+	if m.step != StepRegistry {
+		t.Fatalf("expected step Registry, got %v", m.step)
+	}
+	if m.cfg.Port != 0 {
+		t.Fatalf("expected port to remain 0, got %d", m.cfg.Port)
+	}
+}
+
+func TestUpdate_ImageEmpty(t *testing.T) {
+	m := New()
+	m.step = StepImage
+	m.input.SetValue("")
+	mm, _ := m.Update(keyMsg("enter"))
+	m = mm.(Model)
+	if m.step != StepK8s {
+		t.Fatalf("expected step K8s, got %v", m.step)
+	}
+}
+
+func TestInit_ReturnsCmd(t *testing.T) {
+	m := New()
+	cmd := m.Init()
+	if cmd == nil {
+		t.Fatal("Init should return a non-nil command")
+	}
+}
+
+func TestView_DetectNotDetected(t *testing.T) {
+	m := New()
+	m.step = StepDetect
+	v := m.View()
+	if !strings.Contains(v, "Detecting") {
+		t.Fatalf("detect view should show detecting message:\n%s", v)
+	}
+}
+
+func TestView_K8sStep(t *testing.T) {
+	m := New()
+	m.step = StepK8s
+	v := m.View()
+	if !strings.Contains(v, "health") {
+		t.Fatalf("k8s view should mention health:\n%s", v)
+	}
+}
+
+func TestView_SummaryWithIngress(t *testing.T) {
+	m := New()
+	m.step = StepSummary
+	m.cfg = config.Config{
+		Stack:    config.StackNode,
+		AppType:  config.AppTypeExpress,
+		CI:       config.CIGitHubActions,
+		Registry: config.RegistryGHCR,
+		Image:    "a/b",
+		Port:     3000,
+		K8s:      config.K8sOptions{Enabled: true, Ingress: true, IngressHost: "app.example.com"},
+	}
+	v := m.View()
+	if !strings.Contains(v, "app.example.com") {
+		t.Fatalf("summary should show ingress host:\n%s", v)
+	}
+}
+
+func TestRunDetection(t *testing.T) {
+	msg := runDetection()
+	if msg == nil {
+		t.Fatal("runDetection should return a non-nil message")
+	}
+}
+
+func TestIsInteractive_True(t *testing.T) {
+	orig := interactiveFn
+	defer func() { interactiveFn = orig }()
+	interactiveFn = func() bool { return true }
+	if !isInteractive() {
+		t.Fatal("expected interactive to be true")
+	}
+}
+
+func TestUpdate_KeyNavigation(t *testing.T) {
+	m := New()
+	m.step = StepStack
+	m.choiceIdx = 0
+	// Press down to move to nodejs.
+	mm, _ := m.Update(keyMsg("down"))
+	m = mm.(Model)
+	if m.choiceIdx != 1 {
+		t.Fatalf("expected choiceIdx 1, got %d", m.choiceIdx)
+	}
+	// Press up to move back to go.
+	mm, _ = m.Update(keyMsg("up"))
+	m = mm.(Model)
+	if m.choiceIdx != 0 {
+		t.Fatalf("expected choiceIdx 0, got %d", m.choiceIdx)
+	}
 }

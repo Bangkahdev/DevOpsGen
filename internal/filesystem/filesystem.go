@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -98,6 +99,8 @@ func (f *RealFS) PlanBuild(artifacts map[string][]byte) (Plan, error) {
 			return Plan{}, fmt.Errorf("filesystem: stat %q: %w", clean, statErr)
 		}
 	}
+	// Sort directories deepest-first for creation, and reverse for cleanup.
+	sortStrings(p.Dirs)
 	return p, nil
 }
 
@@ -113,21 +116,39 @@ func (f *RealFS) Commit(p Plan) error {
 	}
 	created := make([]string, 0, len(p.Create))
 	createdDirs := make([]string, 0, len(p.Dirs))
-	rollbackErrors := []string{}
+	var rollbackErrors []string
 
 	// Backup existing files before replacing.
-	for orig, backup := range p.Backup {
+	// Sort backup origins for deterministic rollback order.
+	backupOrigins := make([]string, 0, len(p.Backup))
+	for orig := range p.Backup {
+		backupOrigins = append(backupOrigins, orig)
+	}
+	sortStrings(backupOrigins)
+
+	for _, orig := range backupOrigins {
+		backup := p.Backup[orig]
 		if err := os.Rename(orig, backup); err != nil {
 			rollbackErrors = append(rollbackErrors, fmt.Sprintf("backup %q: %v", orig, err))
-			// Roll back any backups already made.
-			for o, b := range p.Backup {
+			// Roll back any backups already made (reverse order).
+			for i := len(backupOrigins) - 1; i >= 0; i-- {
+				o := backupOrigins[i]
 				if o == orig {
 					break
 				}
-				_ = os.Rename(b, o)
+				b := p.Backup[o]
+				if _, statErr := os.Lstat(b); statErr == nil {
+					if rerr := os.Rename(b, o); rerr != nil {
+						rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback %q: %v", o, rerr))
+					}
+				}
 			}
-			_ = f.rollbackCreate(created)
-			_ = f.rollbackRemoveDirs(createdDirs)
+			if rerr := f.rollbackCreate(created); rerr != nil {
+				rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback-created: %v", rerr))
+			}
+			if rerr := f.rollbackRemoveDirs(createdDirs); rerr != nil {
+				rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback-dirs: %v", rerr))
+			}
 			return fmt.Errorf("filesystem: backup %q: %v; rollback errors: %v", orig, err, strings.Join(rollbackErrors, "; "))
 		}
 	}
@@ -136,9 +157,15 @@ func (f *RealFS) Commit(p Plan) error {
 	for _, dir := range p.Dirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			rollbackErrors = append(rollbackErrors, fmt.Sprintf("mkdir %q: %v", dir, err))
-			_ = f.rollbackReplace(p.Backup)
-			_ = f.rollbackCreate(created)
-			_ = f.rollbackRemoveDirs(createdDirs)
+			if rerr := f.rollbackReplace(p.Backup); rerr != nil {
+				rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback-replace: %v", rerr))
+			}
+			if rerr := f.rollbackCreate(created); rerr != nil {
+				rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback-created: %v", rerr))
+			}
+			if rerr := f.rollbackRemoveDirs(createdDirs); rerr != nil {
+				rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback-dirs: %v", rerr))
+			}
 			return fmt.Errorf("filesystem: mkdir %q: %v; rollback errors: %v", dir, err, strings.Join(rollbackErrors, "; "))
 		}
 		createdDirs = append(createdDirs, dir)
@@ -148,9 +175,15 @@ func (f *RealFS) Commit(p Plan) error {
 	for _, dst := range p.Create {
 		if err := f.writeFile(dst, p.Files[dst]); err != nil {
 			rollbackErrors = append(rollbackErrors, fmt.Sprintf("write %q: %v", dst, err))
-			_ = f.rollbackCreate(created)
-			_ = f.rollbackReplace(p.Backup)
-			_ = f.rollbackRemoveDirs(createdDirs)
+			if rerr := f.rollbackReplace(p.Backup); rerr != nil {
+				rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback-replace: %v", rerr))
+			}
+			if rerr := f.rollbackCreate(created); rerr != nil {
+				rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback-created: %v", rerr))
+			}
+			if rerr := f.rollbackRemoveDirs(createdDirs); rerr != nil {
+				rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback-dirs: %v", rerr))
+			}
 			return fmt.Errorf("filesystem: write %q: %v; rollback errors: %v", dst, err, strings.Join(rollbackErrors, "; "))
 		}
 		created = append(created, dst)
@@ -160,9 +193,15 @@ func (f *RealFS) Commit(p Plan) error {
 	for _, dst := range p.Replace {
 		if err := f.writeFile(dst, p.Files[dst]); err != nil {
 			rollbackErrors = append(rollbackErrors, fmt.Sprintf("write %q: %v", dst, err))
-			_ = f.rollbackCreate(created)
-			_ = f.rollbackReplace(p.Backup)
-			_ = f.rollbackRemoveDirs(createdDirs)
+			if rerr := f.rollbackReplace(p.Backup); rerr != nil {
+				rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback-replace: %v", rerr))
+			}
+			if rerr := f.rollbackCreate(created); rerr != nil {
+				rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback-created: %v", rerr))
+			}
+			if rerr := f.rollbackRemoveDirs(createdDirs); rerr != nil {
+				rollbackErrors = append(rollbackErrors, fmt.Sprintf("rollback-dirs: %v", rerr))
+			}
 			return fmt.Errorf("filesystem: write %q: %v; rollback errors: %v", dst, err, strings.Join(rollbackErrors, "; "))
 		}
 	}
@@ -170,7 +209,7 @@ func (f *RealFS) Commit(p Plan) error {
 	// Success: discard backups.
 	var cleanupErrors []string
 	for _, backup := range p.Backup {
-		if err := os.Remove(backup); err != nil {
+		if err := os.Remove(backup); err != nil && !errors.Is(err, os.ErrNotExist) {
 			cleanupErrors = append(cleanupErrors, err.Error())
 		}
 	}
@@ -194,9 +233,17 @@ func (f *RealFS) rollbackCreate(paths []string) error {
 
 func (f *RealFS) rollbackReplace(backup map[string]string) error {
 	var first error
-	// Restore in reverse order of backup map iteration is not deterministic;
-	// we restore each orig from its backup.
-	for orig, b := range backup {
+	// Sort backup keys for deterministic restore order.
+	origs := make([]string, 0, len(backup))
+	for orig := range backup {
+		origs = append(origs, orig)
+	}
+	sortStrings(origs)
+
+	// Restore in reverse order (last backed up first restored).
+	for i := len(origs) - 1; i >= 0; i-- {
+		orig := origs[i]
+		b := backup[orig]
 		// Remove the (possibly partially written) replacement.
 		_ = os.Remove(orig)
 		if err := os.Rename(b, orig); err != nil {
@@ -212,9 +259,9 @@ func (f *RealFS) rollbackRemoveDirs(dirs []string) error {
 	var first error
 	// Remove in reverse order (deepest first).
 	for i := len(dirs) - 1; i >= 0; i-- {
-		if err := os.Remove(dirs[i]); err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, os.ErrExist) {
-			// Only fail on non-empty-dir errors; ignore if dir has files.
-			if !errors.Is(err, os.ErrNotExist) {
+		if err := os.Remove(dirs[i]); err != nil && !errors.Is(err, os.ErrNotExist) {
+			// Ignore "directory not empty" errors; only fail on real errors.
+			if !errors.Is(err, os.ErrExist) && !strings.Contains(err.Error(), "not empty") {
 				if first == nil {
 					first = err
 				}
@@ -311,11 +358,5 @@ func dirExists(dirs []string, dir string) bool {
 }
 
 func sortStrings(s []string) {
-	for i := 0; i < len(s); i++ {
-		for j := i + 1; j < len(s); j++ {
-			if s[j] < s[i] {
-				s[i], s[j] = s[j], s[i]
-			}
-		}
-	}
+	sort.Strings(s)
 }
