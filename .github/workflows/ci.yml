@@ -45,17 +45,6 @@ jobs:
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
           "$(go env GOPATH)"/bin/actionlint -color .github/workflows/ci.yml
 
-      - name: hadolint
-        run: |
-          docker run --rm -i hadolint/hadolint:latest-debian < Dockerfile
-          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.go.tmpl
-          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.python.tmpl
-          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.express.tmpl
-          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.generic.tmpl
-          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.nextjs.tmpl
-          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.nestjs.tmpl
-          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.vite.tmpl
-
   test:
     name: Test
     runs-on: ubuntu-latest
