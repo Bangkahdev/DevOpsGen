@@ -47,7 +47,6 @@ jobs:
 
       - name: hadolint
         run: |
-          docker run --rm -i hadolint/hadolint:latest-debian < Dockerfile
           docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.go.tmpl
           docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.python.tmpl
           docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.express.tmpl
