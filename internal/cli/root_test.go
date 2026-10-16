@@ -355,18 +355,18 @@ func TestRunInit_NodeJS_Express(t *testing.T) {
 func TestRunInit_NodeJS_WithK8sIngress(t *testing.T) {
 	dir := t.TempDir()
 	flags := &InitFlags{
-		Stack:        "nodejs",
-		AppType:      "nextjs",
-		CI:           "github-actions",
-		Registry:     "ghcr",
-		Image:        "bangkah/web",
-		Port:         3000,
-		StartCmd:     "npx next start -p 3000",
-		K8s:          true,
-		Ingress:      true,
-		IngressHost:  "app.example.com",
-		HealthPath:   "/health",
-		OutputDir:    dir,
+		Stack:       "nodejs",
+		AppType:     "nextjs",
+		CI:          "github-actions",
+		Registry:    "ghcr",
+		Image:       "bangkah/web",
+		Port:        3000,
+		StartCmd:    "npx next start -p 3000",
+		K8s:         true,
+		Ingress:     true,
+		IngressHost: "app.example.com",
+		HealthPath:  "/health",
+		OutputDir:   dir,
 	}
 	if err := RunInit(flags); err != nil {
 		t.Fatalf("runInit: %v", err)
@@ -426,10 +426,10 @@ func TestToConfig_ErrorPaths(t *testing.T) {
 func TestResolveConfig_ErrorPaths(t *testing.T) {
 	// Empty stack with detection that fails.
 	cfg := config.Config{
-		CI:       config.CIGitHubActions,
-		Registry: config.RegistryDockerHub,
-		Image:    "a/b",
-		Port:     8080,
+		CI:        config.CIGitHubActions,
+		Registry:  config.RegistryDockerHub,
+		Image:     "a/b",
+		Port:      8080,
 		OutputDir: t.TempDir(),
 	}
 	_, err := ResolveConfig(cfg, detector.New())
@@ -451,10 +451,10 @@ func TestResolveConfig_ErrorPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg2 := config.Config{
-		CI:       config.CIGitHubActions,
-		Registry: config.RegistryDockerHub,
-		Image:    "a/b",
-		Port:     8080,
+		CI:        config.CIGitHubActions,
+		Registry:  config.RegistryDockerHub,
+		Image:     "a/b",
+		Port:      8080,
 		OutputDir: t.TempDir(),
 	}
 	_, err = ResolveConfig(cfg2, detector.New())
