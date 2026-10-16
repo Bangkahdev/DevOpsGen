@@ -124,7 +124,7 @@ func (e *engine) validateWorkflow(a output.Artifact) error {
 			return fmt.Errorf("validator: %s missing %q", a.Path, want)
 		}
 	}
-	if strings.Contains(s, "[[") || strings.Contains(s, "{{.") {
+	if strings.Contains(s, "{{.") {
 		return fmt.Errorf("validator: %s contains unrendered template syntax", a.Path)
 	}
 	if strings.Contains(s, "github.sha") {

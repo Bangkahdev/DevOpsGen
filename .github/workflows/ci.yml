@@ -43,7 +43,18 @@ jobs:
       - name: actionlint
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          $(go env GOPATH)/bin/actionlint -color .github/workflows/ci.yml
+          "$(go env GOPATH)"/bin/actionlint -color .github/workflows/ci.yml
+
+      - name: hadolint
+        run: |
+          docker run --rm -i hadolint/hadolint:latest-debian < Dockerfile
+          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.go.tmpl
+          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.python.tmpl
+          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.express.tmpl
+          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.generic.tmpl
+          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.nextjs.tmpl
+          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.nestjs.tmpl
+          docker run --rm -i hadolint/hadolint:latest-debian < templates/docker/Dockerfile.vite.tmpl
 
   test:
     name: Test
@@ -67,13 +78,14 @@ jobs:
       - name: Test with coverage
         run: |
           go test -coverprofile=coverage.out ./internal/...
-          go tool cover -func=coverage.out | tee coverage.txt
+          go tool cover -func=coverage.out > coverage.txt
+          cat coverage.txt
 
       - name: Enforce coverage floor
         run: |
           TOTAL=$(grep -E '^total:' coverage.txt | awk '{print $NF}' | sed 's/%//')
           echo "Total coverage: $TOTAL%"
-          awk -v t=$TOTAL 'BEGIN { if (t < 80) { print "coverage " t "% is below 80% floor"; exit 1 } }'
+          awk -v t="$TOTAL" 'BEGIN { if (t < 80) { print "coverage " t "% is below 80% floor"; exit 1 } }'
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4

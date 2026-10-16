@@ -252,8 +252,8 @@ deployment templates bundled in the running binary. The list reflects
 actual bundled capability, not a future roadmap.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintf(cmd.OutOrStdout(), "Stacks:\n  go, nodejs\n")
-			fmt.Fprintf(cmd.OutOrStdout(), "App types:\n  binary (Go), express, nextjs, vite, nestjs, generic (Node.js)\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "Stacks:\n  go, nodejs, python\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "App types:\n  binary (Go), express, nextjs, vite, nestjs, generic (Node.js), fastapi, django, flask, py-generic (Python)\n")
 			fmt.Fprintf(cmd.OutOrStdout(), "CI providers:\n  github-actions\n")
 			fmt.Fprintf(cmd.OutOrStdout(), "Registries:\n  dockerhub, ghcr\n")
 			fmt.Fprintf(cmd.OutOrStdout(), "Templates: docker, github-actions, kubernetes\n")

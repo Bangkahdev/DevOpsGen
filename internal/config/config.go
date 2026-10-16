@@ -10,6 +10,7 @@ type StackType string
 const (
 	StackGo   StackType = "go"
 	StackNode StackType = "nodejs"
+	StackPy   StackType = "python"
 )
 
 // AppType identifies the application shape within a stack.
@@ -22,6 +23,10 @@ const (
 	AppTypeVite    AppType = "vite"    // Node.js
 	AppTypeNestJS  AppType = "nestjs"  // Node.js
 	AppTypeGeneric AppType = "generic" // Node.js
+	AppTypeFastAPI AppType = "fastapi" // Python
+	AppTypeDjango  AppType = "django"  // Python
+	AppTypeFlask   AppType = "flask"   // Python
+	AppTypePyGeneric AppType = "py-generic" // Python
 )
 
 // CIProvider identifies a supported CI/CD provider.

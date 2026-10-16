@@ -10,7 +10,7 @@ func TestValidateConfig_RequiredFields(t *testing.T) {
 		cfg  Config
 	}{
 		{"empty", Config{}},
-		{"bad stack", Config{Stack: "python"}},
+		{"bad stack", Config{Stack: "ruby"}},
 		{"bad ci", Config{Stack: StackGo, CI: "jenkins"}},
 		{"bad registry", Config{Stack: StackGo, CI: CIGitHubActions, Registry: "registry.gitlab"}},
 		{"empty image", Config{Stack: StackGo, CI: CIGitHubActions, Registry: RegistryDockerHub, Port: 8080}},
@@ -20,6 +20,7 @@ func TestValidateConfig_RequiredFields(t *testing.T) {
 		{"port too high", Config{Stack: StackGo, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "a/b", Port: 70000}},
 		{"bad app type for go", Config{Stack: StackGo, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "a/b", Port: 8080, AppType: AppTypeExpress}},
 		{"bad app type for node", Config{Stack: StackNode, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "a/b", Port: 8080, AppType: AppTypeBinary}},
+		{"bad app type for python", Config{Stack: StackPython, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "a/b", Port: 8080, AppType: AppTypeBinary}},
 		{"ingress host missing", Config{Stack: StackGo, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "a/b", Port: 8080, K8s: K8sOptions{Ingress: true}}},
 		{"bad ingress host", Config{Stack: StackGo, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "a/b", Port: 8080, K8s: K8sOptions{Ingress: true, IngressHost: "Bad_Host!"}}},
 		{"bad health path", Config{Stack: StackGo, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "a/b", Port: 8080, K8s: K8sOptions{HealthPath: "health"}}},
@@ -41,6 +42,8 @@ func TestValidateConfig_Valid(t *testing.T) {
 		{Stack: StackGo, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "bangkah/my-app", Port: 8080, AppType: AppTypeBinary},
 		{Stack: StackNode, CI: CIGitHubActions, Registry: RegistryGHCR, Image: "bangkah/api", Port: 3000, AppType: AppTypeExpress, StartCmd: "npm start"},
 		{Stack: StackNode, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "bangkah/site", Port: 8080, AppType: AppTypeVite, K8s: K8sOptions{Ingress: true, IngressHost: "example.com", HealthPath: "/health"}},
+		{Stack: StackPython, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "bangkah/api", Port: 8000, AppType: AppTypeFastAPI, StartCmd: "uvicorn main:app"},
+		{Stack: StackPython, CI: CIGitHubActions, Registry: RegistryGHCR, Image: "bangkah/django", Port: 8000, AppType: AppTypeDjango},
 	}
 	for i, cfg := range cases {
 		t.Run("ok", func(t *testing.T) {
