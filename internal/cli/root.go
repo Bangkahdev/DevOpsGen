@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"devopsgen.dev/devopsgen/internal/config"
 	"devopsgen.dev/devopsgen/internal/detector"
 	"devopsgen.dev/devopsgen/internal/output"
 	"devopsgen.dev/devopsgen/internal/templates"
@@ -94,8 +95,7 @@ var (
 	errAmbiguousStack = errors.New("ambiguous or unsupported stack")
 )
 
-// newInitCommand wires the init command. The implementation lives in a
-// separate file so this file stays focused on the command tree.
+// newInitCommand wires the init command.
 func newInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -123,6 +123,33 @@ process runs headless and never waits for stdin.`,
 				flags.BuildCmd = wcfg.BuildCmd
 				flags.TestCmd = wcfg.TestCmd
 				flags.StartCmd = wcfg.StartCmd
+				if wcfg.Image != "" {
+					flags.Image = wcfg.Image
+				}
+				if wcfg.Port != 0 {
+					flags.Port = wcfg.Port
+				}
+				if wcfg.Tag != "" {
+					flags.Tag = wcfg.Tag
+				}
+				if wcfg.Registry != "" {
+					flags.Registry = string(wcfg.Registry)
+				}
+				if wcfg.CI != "" {
+					flags.CI = string(wcfg.CI)
+				}
+				// Merge flag-based k8s settings into wizard config.
+				wcfg.K8s.Enabled = flags.K8s
+				wcfg.K8s.Ingress = flags.Ingress
+				wcfg.K8s.IngressHost = flags.IngressHost
+				wcfg.K8s.HealthPath = flags.HealthPath
+				wcfg.OutputDir = flags.OutputDir
+				wcfg.Generation = config.GenerationOptions{Force: flags.Force, DryRun: flags.DryRun}
+				// Read back merged k8s options into flags for RunInit.
+				flags.K8s = wcfg.K8s.Enabled
+				flags.Ingress = wcfg.K8s.Ingress
+				flags.IngressHost = wcfg.K8s.IngressHost
+				flags.HealthPath = wcfg.K8s.HealthPath
 			}
 			return RunInit(flags)
 		},
@@ -165,6 +192,9 @@ func runDetect(out io.Writer) error {
 	}
 	fmt.Fprintf(out, "stack: %s\n", r.Stack)
 	fmt.Fprintf(out, "indicators: %s\n", strings.Join(r.Indicators, ", "))
+	if len(r.Warnings) > 0 {
+		fmt.Fprintf(out, "warnings: %s\n", strings.Join(r.Warnings, "; "))
+	}
 	if len(r.AppCandidates) > 0 {
 		fmt.Fprintf(out, "app-type candidates: %s\n", strings.Join(r.AppCandidates, ", "))
 	}
@@ -209,28 +239,31 @@ GitHub Actions structure, and port/health probe consistency.`,
 }
 
 func runValidate(dir string, out io.Writer) error {
-	entries, err := os.ReadDir(dir)
+	arts, err := collectArtifacts(dir)
 	if err != nil {
 		return newExitError(1, fmt.Errorf("read dir: %w", err))
 	}
-	var arts []output.Artifact
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		name := e.Name()
-		if !isArtifact(name) {
-			continue
-		}
-		b, err := os.ReadFile(filepath.Join(dir, name))
-		if err != nil {
-			return newExitError(1, fmt.Errorf("read %s: %w", name, err))
-		}
-		arts = append(arts, output.Artifact{Path: name, Content: b})
-	}
 	if len(arts) == 0 {
-		fmt.Fprintf(out, "no artifacts found in %s\n", dir)
-		return nil
+		return newExitError(4, fmt.Errorf("no artifacts found in %s", dir))
+	}
+	// Check for required MVP artifacts.
+	required := map[string]bool{"Dockerfile": false, ".github/workflows/ci.yml": false}
+	for _, a := range arts {
+		if a.Path == "Dockerfile" {
+			required["Dockerfile"] = true
+		}
+		if a.Path == ".github/workflows/ci.yml" || strings.HasSuffix(a.Path, "ci.yml") {
+			required[".github/workflows/ci.yml"] = true
+		}
+	}
+	var missing []string
+	for k, v := range required {
+		if !v {
+			missing = append(missing, k)
+		}
+	}
+	if len(missing) > 0 {
+		return newExitError(4, fmt.Errorf("missing required artifacts: %s", strings.Join(missing, ", ")))
 	}
 	r, err := validator.New().Validate(arts)
 	if err != nil {
@@ -243,6 +276,41 @@ func runValidate(dir string, out io.Writer) error {
 	return nil
 }
 
+// collectArtifacts recursively finds supported artifact files in dir.
+func collectArtifacts(dir string) ([]output.Artifact, error) {
+	var arts []output.Artifact
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			// Skip hidden directories and common non-artifact dirs.
+			name := d.Name()
+			if name == ".git" || name == "node_modules" || name == ".devopsgen" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !isArtifact(d.Name()) {
+			return nil
+		}
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		arts = append(arts, output.Artifact{Path: filepath.ToSlash(rel), Content: b})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return arts, nil
+}
+
 func newListCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
@@ -252,8 +320,8 @@ deployment templates bundled in the running binary. The list reflects
 actual bundled capability, not a future roadmap.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintf(cmd.OutOrStdout(), "Stacks:\n  go, nodejs, python\n")
-			fmt.Fprintf(cmd.OutOrStdout(), "App types:\n  binary (Go), express, nextjs, vite, nestjs, generic (Node.js), fastapi, django, flask, generic (Python)\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "Stacks:\n  go, nodejs\n")
+			fmt.Fprintf(cmd.OutOrStdout(), "App types:\n  binary (Go), express, nextjs, vite, nestjs, generic (Node.js)\n")
 			fmt.Fprintf(cmd.OutOrStdout(), "CI providers:\n  github-actions\n")
 			fmt.Fprintf(cmd.OutOrStdout(), "Registries:\n  dockerhub, ghcr\n")
 			fmt.Fprintf(cmd.OutOrStdout(), "Templates: docker, github-actions, kubernetes\n")

@@ -10,7 +10,6 @@ type StackType string
 const (
 	StackGo     StackType = "go"
 	StackNode   StackType = "nodejs"
-	StackPython StackType = "python"
 )
 
 // AppType identifies the application shape within a stack.
@@ -22,10 +21,7 @@ const (
 	AppTypeNextJS  AppType = "nextjs"  // Node.js
 	AppTypeVite    AppType = "vite"    // Node.js
 	AppTypeNestJS  AppType = "nestjs"  // Node.js
-	AppTypeGeneric AppType = "generic" // Node.js / Python
-	AppTypeFastAPI AppType = "fastapi" // Python
-	AppTypeDjango  AppType = "django"  // Python
-	AppTypeFlask   AppType = "flask"   // Python
+	AppTypeGeneric AppType = "generic" // Node.js
 )
 
 // CIProvider identifies a supported CI/CD provider.
@@ -79,3 +75,6 @@ type Config struct {
 
 // DefaultTag is the default mutable alias published alongside the commit SHA.
 const DefaultTag = "latest"
+
+// MaxTagLen is the maximum allowed length for a tag value.
+const MaxTagLen = 128

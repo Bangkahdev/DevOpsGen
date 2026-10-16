@@ -8,6 +8,7 @@ package cli
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -59,8 +60,8 @@ func AddInitFlags(cmd *cobra.Command) *InitFlags {
 	return flags
 }
 
-// ToConfig converts parsed flags into a validated Config.
-// Returns an error when a required parameter is missing or invalid (exit 2).
+// ToConfig converts parsed flags into a Config without requiring stack.
+// Stack resolution (from flags or detection) happens in RunInit per SRS 4.2.
 func (f *InitFlags) ToConfig() (config.Config, error) {
 	cfg := config.Config{
 		Stack:      config.StackType(f.Stack),
@@ -83,11 +84,51 @@ func (f *InitFlags) ToConfig() (config.Config, error) {
 		HealthPath:  f.HealthPath,
 	}
 
-	if cfg.Stack == "" {
-		return cfg, fmt.Errorf("--stack is required (go or nodejs)")
+	// Validate CI, registry, image, port, tag, app-type, k8s options.
+	// Stack is allowed to be empty here; it is resolved later.
+	if cfg.Stack != "" && cfg.Stack != config.StackGo && cfg.Stack != config.StackNode {
+		return cfg, fmt.Errorf("stack must be 'go' or 'nodejs'")
 	}
-	if err := config.ValidateConfig(cfg); err != nil {
-		return cfg, err
+	if cfg.CI != config.CIGitHubActions {
+		return cfg, fmt.Errorf("ci must be 'github-actions'")
+	}
+	if cfg.Registry != config.RegistryDockerHub && cfg.Registry != config.RegistryGHCR {
+		return cfg, fmt.Errorf("registry must be 'dockerhub' or 'ghcr'")
+	}
+	if strings.TrimSpace(cfg.Image) == "" {
+		return cfg, fmt.Errorf("image is required")
+	}
+	if !config.ImageRe.MatchString(cfg.Image) {
+		return cfg, fmt.Errorf("image must be 'namespace/repository' without host or tag")
+	}
+	if cfg.Port < 1 || cfg.Port > 65535 {
+		return cfg, fmt.Errorf("port must be in range 1-65535")
+	}
+	if cfg.AppType != "" && !config.ValidAppTypeForStack(cfg.Stack, cfg.AppType) {
+		return cfg, fmt.Errorf("app-type is not supported for the selected stack")
+	}
+	if err := config.ValidateTag(cfg.Tag); err != nil {
+		return cfg, fmt.Errorf("tag: %w", err)
+	}
+	if cfg.K8s.Ingress && cfg.K8s.IngressHost == "" {
+		return cfg, fmt.Errorf("ingress-host is required when ingress is enabled")
+	}
+	if cfg.K8s.IngressHost != "" {
+		if err := config.ValidateHostname(cfg.K8s.IngressHost); err != nil {
+			return cfg, err
+		}
+	}
+	if cfg.K8s.HealthPath != "" && !config.HealthPathRe.MatchString(cfg.K8s.HealthPath) {
+		return cfg, fmt.Errorf("health-path must be a valid HTTP path")
+	}
+	if err := config.ValidateCommand(cfg.BuildCmd); err != nil {
+		return cfg, fmt.Errorf("build-cmd: %w", err)
+	}
+	if err := config.ValidateCommand(cfg.TestCmd); err != nil {
+		return cfg, fmt.Errorf("test-cmd: %w", err)
+	}
+	if err := config.ValidateCommand(cfg.StartCmd); err != nil {
+		return cfg, fmt.Errorf("start-cmd: %w", err)
 	}
 	if err := config.ValidateOutputDir(cfg.OutputDir); err != nil {
 		return cfg, err

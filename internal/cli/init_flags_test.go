@@ -29,13 +29,18 @@ func TestAddInitFlags_ToConfig(t *testing.T) {
 	}
 }
 
-func TestToConfig_MissingStack(t *testing.T) {
+func TestToConfig_EmptyStackAllowed(t *testing.T) {
 	cmd := &cobra.Command{Use: "init"}
 	flags := AddInitFlags(cmd)
 	flags.Image = "a/b"
 	flags.Port = 8080
-	if _, err := flags.ToConfig(); err == nil {
-		t.Fatal("expected error for missing stack")
+	// Stack is allowed to be empty here; resolved later by detection.
+	cfg, err := flags.ToConfig()
+	if err != nil {
+		t.Fatalf("unexpected error for empty stack: %v", err)
+	}
+	if cfg.Image != "a/b" {
+		t.Fatalf("image: %s", cfg.Image)
 	}
 }
 

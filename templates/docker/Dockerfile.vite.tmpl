@@ -9,7 +9,7 @@ COPY package*.json ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 COPY . .
-{{if .BuildCmd}}RUN {{.BuildCmd}}{{else}}RUN npm run build{{end}}
+RUN {{.BuildOrDefault}}
 
 FROM node:20-alpine AS runtime
 
@@ -23,4 +23,4 @@ EXPOSE {{.Port}}
 
 USER 1000:1000
 
-CMD ["node", "node_modules/.bin/serve", "-s", "dist", "-l", "{{.Port}}"]
+CMD ["sh", "-c", "npx serve -s dist -l {{.Port}}"]

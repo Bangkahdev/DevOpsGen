@@ -52,9 +52,13 @@ func TestRunValidate_Pass(t *testing.T) {
 	dir := t.TempDir()
 	arts := []string{
 		"Dockerfile:FROM golang:1.22\nEXPOSE 8080",
+		".github/workflows/ci.yml:name: CI\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: docker push x:${{ github.sha }}",
 	}
 	for _, a := range arts {
 		parts := strings.SplitN(a, ":", 2)
+		if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(parts[0])), 0o755); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.WriteFile(filepath.Join(dir, parts[0]), []byte(parts[1]), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -81,8 +85,13 @@ func TestRunValidate_Fail(t *testing.T) {
 
 func TestRunValidate_Empty(t *testing.T) {
 	dir := t.TempDir()
-	if err := runValidate(dir, os.Stdout); err != nil {
-		t.Fatalf("empty dir should pass: %v", err)
+	err := runValidate(dir, os.Stdout)
+	if err == nil {
+		t.Fatal("expected error for no artifacts")
+	}
+	var ee *exitError
+	if !errors.As(err, &ee) || ee.ExitCode() != 4 {
+		t.Fatalf("expected exit 4, got %v", err)
 	}
 }
 
@@ -204,7 +213,7 @@ func TestNewRootCommand(t *testing.T) {
 	if err := root.Execute(); err != nil {
 		t.Fatalf("root execute list: %v", err)
 	}
-	if !strings.Contains(buf.String(), "Go") {
+	if !strings.Contains(buf.String(), "go") {
 		t.Fatalf("expected list output, got %q", buf.String())
 	}
 }

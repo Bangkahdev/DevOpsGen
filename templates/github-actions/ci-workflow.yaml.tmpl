@@ -55,7 +55,7 @@ jobs:
 
 [[if .TestCmd]]
       - name: Test
-        run: [[.TestCmd]]
+        run: [[.TestCmdForWorkflow]]
 [[else]]
       - name: Test stage skipped
         run: echo "Test stage is not configured for this project. No test command was provided, so tests are intentionally not run."

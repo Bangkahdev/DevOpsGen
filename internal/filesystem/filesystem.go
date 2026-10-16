@@ -25,6 +25,8 @@ type Plan struct {
 	Backup map[string]string
 	// Files maps destination paths to their rendered content.
 	Files map[string][]byte
+	// Dirs holds directories created by the transaction.
+	Dirs []string
 }
 
 // FS is the filesystem operation interface used by the engine.
@@ -47,12 +49,28 @@ func (f *RealFS) PlanBuild(artifacts map[string][]byte) (Plan, error) {
 		return Plan{}, err
 	}
 	p := Plan{Backup: map[string]string{}, Files: map[string][]byte{}}
-	for rel, content := range artifacts {
+
+	// Sort artifact paths for deterministic planning (NFR-04).
+	paths := make([]string, 0, len(artifacts))
+	for rel := range artifacts {
+		paths = append(paths, rel)
+	}
+	sortStrings(paths)
+
+	for _, rel := range paths {
+		content := artifacts[rel]
 		clean, err := f.resolveArtifactPath(rel)
 		if err != nil {
 			return Plan{}, err
 		}
 		p.Files[clean] = content
+
+		// Validate that no parent component of the target is a symlink,
+		// which could redirect writes outside the target root.
+		if err := f.checkSymlinkParents(clean); err != nil {
+			return Plan{}, err
+		}
+
 		info, statErr := os.Lstat(clean)
 		if statErr == nil {
 			if info.Mode()&os.ModeSymlink != 0 {
@@ -63,9 +81,19 @@ func (f *RealFS) PlanBuild(artifacts map[string][]byte) (Plan, error) {
 			}
 			p.Replace = append(p.Replace, clean)
 			p.Conflicts = append(p.Conflicts, clean)
-			p.Backup[clean] = clean + ".devopsgen.bak"
+			backup := clean + ".devopsgen.bak"
+			// Reject backup collision.
+			if _, statErr2 := os.Lstat(backup); statErr2 == nil {
+				return Plan{}, fmt.Errorf("filesystem: backup path %q already exists", backup)
+			}
+			p.Backup[clean] = backup
 		} else if errors.Is(statErr, os.ErrNotExist) {
 			p.Create = append(p.Create, clean)
+			// Track parent directories that will need creation.
+			dir := filepath.Dir(clean)
+			if !dirExists(p.Dirs, dir) {
+				p.Dirs = append(p.Dirs, dir)
+			}
 		} else {
 			return Plan{}, fmt.Errorf("filesystem: stat %q: %w", clean, statErr)
 		}
@@ -84,42 +112,70 @@ func (f *RealFS) Commit(p Plan) error {
 		return err
 	}
 	created := make([]string, 0, len(p.Create))
-	rollbackFailed := false
+	createdDirs := make([]string, 0, len(p.Dirs))
+	rollbackErrors := []string{}
 
 	// Backup existing files before replacing.
 	for orig, backup := range p.Backup {
 		if err := os.Rename(orig, backup); err != nil {
-			return fmt.Errorf("filesystem: backup %q: %w", orig, err)
+			rollbackErrors = append(rollbackErrors, fmt.Sprintf("backup %q: %v", orig, err))
+			// Roll back any backups already made.
+			for o, b := range p.Backup {
+				if o == orig {
+					break
+				}
+				_ = os.Rename(b, o)
+			}
+			_ = f.rollbackCreate(created)
+			_ = f.rollbackRemoveDirs(createdDirs)
+			return fmt.Errorf("filesystem: backup %q: %v; rollback errors: %v", orig, err, strings.Join(rollbackErrors, "; "))
 		}
+	}
+
+	// Create directories first.
+	for _, dir := range p.Dirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			rollbackErrors = append(rollbackErrors, fmt.Sprintf("mkdir %q: %v", dir, err))
+			_ = f.rollbackReplace(p.Backup)
+			_ = f.rollbackCreate(created)
+			_ = f.rollbackRemoveDirs(createdDirs)
+			return fmt.Errorf("filesystem: mkdir %q: %v; rollback errors: %v", dir, err, strings.Join(rollbackErrors, "; "))
+		}
+		createdDirs = append(createdDirs, dir)
 	}
 
 	// Write new files.
 	for _, dst := range p.Create {
 		if err := f.writeFile(dst, p.Files[dst]); err != nil {
-			rollbackFailed = true
+			rollbackErrors = append(rollbackErrors, fmt.Sprintf("write %q: %v", dst, err))
 			_ = f.rollbackCreate(created)
 			_ = f.rollbackReplace(p.Backup)
-			return fmt.Errorf("filesystem: write %q: %w", dst, err)
+			_ = f.rollbackRemoveDirs(createdDirs)
+			return fmt.Errorf("filesystem: write %q: %v; rollback errors: %v", dst, err, strings.Join(rollbackErrors, "; "))
 		}
 		created = append(created, dst)
 	}
 
-	// Write replaced files (content was already rendered in memory).
+	// Write replaced files.
 	for _, dst := range p.Replace {
 		if err := f.writeFile(dst, p.Files[dst]); err != nil {
-			rollbackFailed = true
+			rollbackErrors = append(rollbackErrors, fmt.Sprintf("write %q: %v", dst, err))
 			_ = f.rollbackCreate(created)
 			_ = f.rollbackReplace(p.Backup)
-			return fmt.Errorf("filesystem: write %q: %w", dst, err)
+			_ = f.rollbackRemoveDirs(createdDirs)
+			return fmt.Errorf("filesystem: write %q: %v; rollback errors: %v", dst, err, strings.Join(rollbackErrors, "; "))
 		}
 	}
 
-	// Success: discard backups. If a restore step fails we roll back.
+	// Success: discard backups.
+	var cleanupErrors []string
 	for _, backup := range p.Backup {
-		_ = os.Remove(backup)
+		if err := os.Remove(backup); err != nil {
+			cleanupErrors = append(cleanupErrors, err.Error())
+		}
 	}
-	if rollbackFailed {
-		return errors.New("filesystem: rollback failed")
+	if len(cleanupErrors) > 0 {
+		return fmt.Errorf("filesystem: commit succeeded but backup cleanup failed: %s", strings.Join(cleanupErrors, "; "))
 	}
 	return nil
 }
@@ -127,8 +183,10 @@ func (f *RealFS) Commit(p Plan) error {
 func (f *RealFS) rollbackCreate(paths []string) error {
 	var first error
 	for i := len(paths) - 1; i >= 0; i-- {
-		if err := os.Remove(paths[i]); err != nil && first == nil {
-			first = err
+		if err := os.Remove(paths[i]); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if first == nil {
+				first = err
+			}
 		}
 	}
 	return first
@@ -136,12 +194,31 @@ func (f *RealFS) rollbackCreate(paths []string) error {
 
 func (f *RealFS) rollbackReplace(backup map[string]string) error {
 	var first error
+	// Restore in reverse order of backup map iteration is not deterministic;
+	// we restore each orig from its backup.
 	for orig, b := range backup {
-		if _, err := os.Stat(orig); err == nil {
-			_ = os.Remove(orig)
+		// Remove the (possibly partially written) replacement.
+		_ = os.Remove(orig)
+		if err := os.Rename(b, orig); err != nil {
+			if first == nil {
+				first = fmt.Errorf("restore %q from %q: %w", orig, b, err)
+			}
 		}
-		if err := os.Rename(b, orig); err != nil && first == nil {
-			first = err
+	}
+	return first
+}
+
+func (f *RealFS) rollbackRemoveDirs(dirs []string) error {
+	var first error
+	// Remove in reverse order (deepest first).
+	for i := len(dirs) - 1; i >= 0; i-- {
+		if err := os.Remove(dirs[i]); err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, os.ErrExist) {
+			// Only fail on non-empty-dir errors; ignore if dir has files.
+			if !errors.Is(err, os.ErrNotExist) {
+				if first == nil {
+					first = err
+				}
+			}
 		}
 	}
 	return first
@@ -179,6 +256,37 @@ func (f *RealFS) resolveArtifactPath(rel string) (string, error) {
 	return abs, nil
 }
 
+// checkSymlinkParents verifies that no parent directory component of the
+// target path is a symlink, which could redirect writes outside the root.
+func (f *RealFS) checkSymlinkParents(target string) error {
+	dir := filepath.Dir(target)
+	rootAbs := f.Root
+	if !filepath.IsAbs(rootAbs) {
+		var err error
+		rootAbs, err = filepath.Abs(rootAbs)
+		if err != nil {
+			return err
+		}
+	}
+	// Walk up from the target's parent directory to the root.
+	for cur := dir; cur != rootAbs && cur != filepath.Dir(rootAbs); cur = filepath.Dir(cur) {
+		info, err := os.Lstat(cur)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue // parent doesn't exist yet, will be created
+			}
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("filesystem: parent directory %q is a symlink, refusing to write outside target", cur)
+		}
+		if cur == filepath.Dir(cur) {
+			break // reached filesystem root
+		}
+	}
+	return nil
+}
+
 func (f *RealFS) validateRoot() error {
 	if strings.TrimSpace(f.Root) == "" {
 		return errors.New("filesystem: root is not configured")
@@ -191,4 +299,23 @@ func (f *RealFS) validateRoot() error {
 		return fmt.Errorf("filesystem: root %q is not a directory", f.Root)
 	}
 	return nil
+}
+
+func dirExists(dirs []string, dir string) bool {
+	for _, d := range dirs {
+		if d == dir {
+			return true
+		}
+	}
+	return false
+}
+
+func sortStrings(s []string) {
+	for i := 0; i < len(s); i++ {
+		for j := i + 1; j < len(s); j++ {
+			if s[j] < s[i] {
+				s[i], s[j] = s[j], s[i]
+			}
+		}
+	}
 }

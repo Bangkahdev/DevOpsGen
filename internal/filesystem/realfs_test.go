@@ -59,6 +59,24 @@ func TestRealFS_PlanBuildSymlink(t *testing.T) {
 	}
 }
 
+func TestRealFS_PlanBuildSymlinkParent(t *testing.T) {
+	dir := t.TempDir()
+	// Create a symlink directory that would redirect writes.
+	linkDir := filepath.Join(dir, "linkdir")
+	realDir := filepath.Join(dir, "realdir")
+	if err := os.MkdirAll(realDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(realDir, linkDir); err != nil {
+		t.Fatal(err)
+	}
+	fs := &RealFS{Root: dir}
+	_, err := fs.PlanBuild(map[string][]byte{"linkdir/Dockerfile": []byte("new")})
+	if err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("expected symlink parent rejection, got %v", err)
+	}
+}
+
 func TestRealFS_PlanBuildConflict(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("old"), 0o644); err != nil {

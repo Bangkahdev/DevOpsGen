@@ -10,7 +10,7 @@ RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 COPY . .
 RUN mkdir -p public
-{{if .BuildCmd}}RUN {{.BuildCmd}}{{else}}RUN npm run build{{end}}
+RUN {{.BuildOrDefault}}
 RUN npm prune --omit=dev
 
 FROM node:20-alpine AS runtime
@@ -28,4 +28,4 @@ EXPOSE {{.Port}}
 
 USER 1000:1000
 
-{{if .StartCmd}}CMD ["sh", "-c", {{printf "%q" .StartCmd}}]{{else}}CMD ["npx", "next", "start", "-p", "{{.Port}}"]{{end}}
+CMD ["sh", "-c", {{printf "%q" .StartOrDefault}}]

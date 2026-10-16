@@ -20,6 +20,8 @@ type MemFS struct {
 	WriteErr error
 	// RestoreErr, if set, is returned by Commit's restore step.
 	RestoreErr error
+	// BackupErr, if set, is returned when creating backups.
+	BackupErr error
 }
 
 // NewMemFS returns an empty in-memory filesystem.
@@ -52,9 +54,8 @@ func (m *MemFS) mkdirAllLocked(p string) {
 
 var errNotFound = errors.New("not found")
 
-func (m *MemFS) stat(p string) (fileInfo, bool, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+// statLocked assumes the mutex is already held.
+func (m *MemFS) statLocked(p string) (fileInfo, bool, error) {
 	p = m.clean(p)
 	if d, ok := m.dirs[p]; ok {
 		return fileInfo{isDir: d}, false, nil
@@ -66,6 +67,12 @@ func (m *MemFS) stat(p string) (fileInfo, bool, error) {
 		return fileInfo{}, true, nil
 	}
 	return fileInfo{}, false, errNotFound
+}
+
+func (m *MemFS) stat(p string) (fileInfo, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.statLocked(p)
 }
 
 type fileInfo struct {
@@ -81,8 +88,19 @@ func (i fileInfo) Sys() interface{}   { return nil }
 
 // PlanBuild computes the change plan.
 func (m *MemFS) PlanBuild(artifacts map[string][]byte) (Plan, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	p := Plan{Backup: map[string]string{}, Files: map[string][]byte{}}
-	for rel, content := range artifacts {
+
+	paths := make([]string, 0, len(artifacts))
+	for rel := range artifacts {
+		paths = append(paths, rel)
+	}
+	sortStrings(paths)
+
+	for _, rel := range paths {
+		content := artifacts[rel]
 		if strings.HasPrefix(rel, "/") || strings.HasPrefix(rel, "\\") {
 			return Plan{}, fmt.Errorf("filesystem: path %q escapes target root", rel)
 		}
@@ -91,19 +109,29 @@ func (m *MemFS) PlanBuild(artifacts map[string][]byte) (Plan, error) {
 			return Plan{}, fmt.Errorf("filesystem: path %q escapes target root", rel)
 		}
 		p.Files[clean] = content
-		info, isSymlink, err := m.stat(clean)
+
+		// Reject symlink targets.
+		if _, isSymlink := m.symlinks[clean]; isSymlink {
+			return Plan{}, fmt.Errorf("filesystem: refusing to overwrite symlink %q", clean)
+		}
+		info, _, err := m.statLocked(clean)
 		if err == nil {
-			if isSymlink {
-				return Plan{}, fmt.Errorf("filesystem: refusing to overwrite symlink %q", clean)
-			}
 			if info.IsDir() {
 				return Plan{}, fmt.Errorf("filesystem: refusing to overwrite directory %q", clean)
 			}
 			p.Replace = append(p.Replace, clean)
 			p.Conflicts = append(p.Conflicts, clean)
-			p.Backup[clean] = clean + ".devopsgen.bak"
+			backup := clean + ".devopsgen.bak"
+			if _, ok := m.files[backup]; ok {
+				return Plan{}, fmt.Errorf("filesystem: backup path %q already exists", backup)
+			}
+			p.Backup[clean] = backup
 		} else if errors.Is(err, errNotFound) {
 			p.Create = append(p.Create, clean)
+			dir := filepath.Dir(clean)
+			if !dirExists(p.Dirs, dir) {
+				p.Dirs = append(p.Dirs, dir)
+			}
 		} else {
 			return Plan{}, fmt.Errorf("filesystem: stat %q: %w", clean, err)
 		}
@@ -117,26 +145,48 @@ func (m *MemFS) DryRun(p Plan) (Plan, error) {
 }
 
 // Commit applies the plan with best-effort rollback.
-// The whole operation runs under a single lock; rollback helpers are
-// inline to avoid re-locking.
 func (m *MemFS) Commit(p Plan) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	created := make([]string, 0, len(p.Create))
+	var rollbackErrors []string
 
 	// Backup existing files before replacing.
 	for orig, backup := range p.Backup {
-		m.files[backup] = m.files[orig]
+		if m.BackupErr != nil {
+			rollbackErrors = append(rollbackErrors, fmt.Sprintf("backup %q: %v", orig, m.BackupErr))
+			// Roll back any backups already made.
+			for o, b := range p.Backup {
+				if o == orig {
+					break
+				}
+				if c, ok := m.files[b]; ok {
+					m.files[o] = c
+					delete(m.files, b)
+				}
+			}
+			m.rollbackCreateLocked(created)
+			return fmt.Errorf("filesystem: backup %q: %v; rollback errors: %v", orig, m.BackupErr, strings.Join(rollbackErrors, "; "))
+		}
+		if c, ok := m.files[orig]; ok {
+			m.files[backup] = c
+		}
 		delete(m.files, orig)
+	}
+
+	// Create directories.
+	for _, dir := range p.Dirs {
+		m.mkdirAllLocked(dir)
 	}
 
 	// Write new files.
 	for _, dst := range p.Create {
 		if m.WriteErr != nil {
+			rollbackErrors = append(rollbackErrors, fmt.Sprintf("write %q: %v", dst, m.WriteErr))
 			m.rollbackCreateLocked(created)
 			m.rollbackReplaceLocked(p.Backup)
-			return fmt.Errorf("filesystem: write %q: %w", dst, m.WriteErr)
+			return fmt.Errorf("filesystem: write %q: %v; rollback errors: %v", dst, m.WriteErr, strings.Join(rollbackErrors, "; "))
 		}
 		m.mkdirAllLocked(filepath.Dir(dst))
 		m.files[dst] = p.Files[dst]
@@ -146,31 +196,30 @@ func (m *MemFS) Commit(p Plan) error {
 	// Write replaced files.
 	for _, dst := range p.Replace {
 		if m.WriteErr != nil {
+			rollbackErrors = append(rollbackErrors, fmt.Sprintf("write %q: %v", dst, m.WriteErr))
 			m.rollbackCreateLocked(created)
 			m.rollbackReplaceLocked(p.Backup)
-			return fmt.Errorf("filesystem: write %q: %w", dst, m.WriteErr)
+			return fmt.Errorf("filesystem: write %q: %v; rollback errors: %v", dst, m.WriteErr, strings.Join(rollbackErrors, "; "))
 		}
 		m.files[dst] = p.Files[dst]
 	}
 
-	// Success: discard backups. If restore itself is configured to fail,
-	// treat it as a rollback failure (best-effort restore failed).
+	// Success: discard backups.
 	for _, backup := range p.Backup {
 		delete(m.files, backup)
 	}
 	if m.RestoreErr != nil {
 		m.rollbackReplaceLocked(p.Backup)
-		return fmt.Errorf("filesystem: restore failed: %w", m.RestoreErr)
+		return fmt.Errorf("filesystem: restore failed: %w; rollback errors: %v", m.RestoreErr, strings.Join(rollbackErrors, "; "))
 	}
 	return nil
 }
 
 func (m *MemFS) rollbackCreateLocked(paths []string) error {
-	var first error
 	for i := len(paths) - 1; i >= 0; i-- {
 		delete(m.files, paths[i])
 	}
-	return first
+	return nil
 }
 
 func (m *MemFS) rollbackReplaceLocked(backup map[string]string) error {

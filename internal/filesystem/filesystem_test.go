@@ -70,6 +70,41 @@ func TestPlanBuild_TraversalRejected(t *testing.T) {
 	}
 }
 
+func TestPlanBuild_BackupCollision(t *testing.T) {
+	m := NewMemFS()
+	m.Put("Dockerfile", []byte("old"))
+	m.Put("Dockerfile.devopsgen.bak", []byte("existing backup"))
+	_, err := m.PlanBuild(map[string][]byte{"Dockerfile": []byte("new")})
+	if err == nil {
+		t.Fatal("expected backup collision error")
+	}
+	if !strings.Contains(err.Error(), "backup") {
+		t.Fatalf("error should mention backup: %v", err)
+	}
+}
+
+func TestPlanBuild_TracksDirs(t *testing.T) {
+	m := NewMemFS()
+	p, err := m.PlanBuild(map[string][]byte{
+		"kubernetes/deployment.yaml": []byte("apiVersion: apps/v1"),
+	})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if len(p.Dirs) == 0 {
+		t.Fatal("expected directories to be tracked for creation")
+	}
+	found := false
+	for _, d := range p.Dirs {
+		if d == "kubernetes" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected kubernetes dir in Dirs, got %v", p.Dirs)
+	}
+}
+
 func TestCommit_NewFiles(t *testing.T) {
 	m := NewMemFS()
 	p, _ := m.PlanBuild(map[string][]byte{
@@ -101,7 +136,7 @@ func TestCommit_ReplaceWithBackup(t *testing.T) {
 		t.Fatalf("expected new content, got %q", c)
 	}
 	if _, ok := m.Get("Dockerfile.devopsgen.bak"); ok {
-		t.Fatal("backup should be removed after restore")
+		t.Fatal("backup should be removed after successful commit")
 	}
 }
 
@@ -118,9 +153,31 @@ func TestCommit_WriteFailureRollsBack(t *testing.T) {
 	if !strings.Contains(err.Error(), "write") {
 		t.Fatalf("error should mention write: %v", err)
 	}
+	if !strings.Contains(err.Error(), "rollback") {
+		t.Fatalf("error should mention rollback: %v", err)
+	}
 	// New file should have been cleaned up.
 	if _, ok := m.Get("Dockerfile"); ok {
 		t.Fatal("file should have been rolled back")
+	}
+}
+
+func TestCommit_BackupFailureRollsBack(t *testing.T) {
+	m := NewMemFS()
+	m.Put("Dockerfile", []byte("old"))
+	m.BackupErr = errors.New("simulated backup failure")
+	p, _ := m.PlanBuild(map[string][]byte{"Dockerfile": []byte("new")})
+	err := m.Commit(p)
+	if err == nil {
+		t.Fatal("expected commit error")
+	}
+	if !strings.Contains(err.Error(), "backup") {
+		t.Fatalf("error should mention backup: %v", err)
+	}
+	// Original file should be restored.
+	c, ok := m.Get("Dockerfile")
+	if !ok || string(c) != "old" {
+		t.Fatalf("original file should be restored after backup failure: %v %q", ok, c)
 	}
 }
 

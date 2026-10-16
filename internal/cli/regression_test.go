@@ -35,21 +35,21 @@ func TestRunInit_DryRunWithConflict(t *testing.T) {
 	}
 }
 
-// TestRunInit_PythonStack ensures Python stack generates Dockerfile + workflow.
-func TestRunInit_PythonStack(t *testing.T) {
+// TestRunInit_NodeStack ensures Node.js stack generates Dockerfile + workflow.
+func TestRunInit_NodeStack(t *testing.T) {
 	dir := t.TempDir()
 	flags := &InitFlags{
-		Stack:     "python",
-		AppType:   "fastapi",
+		Stack:     "nodejs",
+		AppType:   "express",
 		CI:        "github-actions",
 		Registry:  "ghcr",
 		Image:     "bangkah/my-app",
-		Port:      8000,
-		StartCmd:  "uvicorn app:app --host 0.0.0.0 --port 8000",
+		Port:      3000,
+		StartCmd:  "node server.js",
 		OutputDir: dir,
 	}
 	if err := RunInit(flags); err != nil {
-		t.Fatalf("runInit python: %v", err)
+		t.Fatalf("runInit nodejs: %v", err)
 	}
 	for _, p := range []string{"Dockerfile", ".github/workflows/ci.yml"} {
 		if _, err := os.Stat(filepath.Join(dir, p)); err != nil {
@@ -57,11 +57,11 @@ func TestRunInit_PythonStack(t *testing.T) {
 		}
 	}
 	df, _ := os.ReadFile(filepath.Join(dir, "Dockerfile"))
-	if !strings.Contains(string(df), "/opt/venv") {
-		t.Fatalf("python Dockerfile should use /opt/venv, got %q", string(df)[:200])
+	if !strings.Contains(string(df), "node:20-alpine") {
+		t.Fatalf("nodejs Dockerfile should use node:20-alpine, got %q", string(df)[:200])
 	}
 	wf, _ := os.ReadFile(filepath.Join(dir, ".github/workflows/ci.yml"))
-	if !strings.Contains(string(wf), "setup-python") {
-		t.Fatalf("python workflow should have setup-python step, got %q", string(wf)[:200])
+	if !strings.Contains(string(wf), "setup-node") {
+		t.Fatalf("nodejs workflow should have setup-node step, got %q", string(wf)[:200])
 	}
 }
