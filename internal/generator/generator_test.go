@@ -177,19 +177,26 @@ func TestGenerate_K8sWithIngress(t *testing.T) {
 		t.Fatalf("generate: %v", err)
 	}
 	var dep []byte
+	var ing []byte
 	for _, a := range arts {
-		if strings.HasSuffix(a.Path, "deployment.yaml") {
+		switch {
+		case strings.HasSuffix(a.Path, "deployment.yaml"):
 			dep = a.Content
+		case strings.HasSuffix(a.Path, "ingress.yaml"):
+			ing = a.Content
 		}
 	}
 	if dep == nil {
 		t.Fatal("deployment not generated")
 	}
-	if !bytes.Contains(dep, []byte("app.example.com")) {
-		t.Fatal("deployment missing ingress host")
-	}
 	if !bytes.Contains(dep, []byte("/health")) {
 		t.Fatal("deployment missing health probe")
+	}
+	if ing == nil {
+		t.Fatal("ingress not generated")
+	}
+	if !bytes.Contains(ing, []byte("app.example.com")) {
+		t.Fatal("ingress missing host")
 	}
 }
 

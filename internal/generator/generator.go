@@ -66,12 +66,18 @@ func (g *engine) specs(cfg config.Config) []templateSpec {
 		})
 	}
 	if cfg.K8s.Enabled {
-		specs = append(specs, templateSpec{
-			name:   "kubernetes/deployment.yaml",
-			file:   "kubernetes/deployment.yaml.tmpl",
-			delims: [2]string{"{{", "}}"},
-			data:   data,
-		})
+		specs = append(specs, []templateSpec{
+			{name: "kubernetes/deployment.yaml", file: "kubernetes/deployment.yaml.tmpl", delims: [2]string{"{{", "}}"}, data: data},
+			{name: "kubernetes/service.yaml", file: "kubernetes/service.yaml.tmpl", delims: [2]string{"{{", "}}"}, data: data},
+		}...)
+		if cfg.K8s.Ingress {
+			specs = append(specs, templateSpec{
+				name:   "kubernetes/ingress.yaml",
+				file:   "kubernetes/ingress.yaml.tmpl",
+				delims: [2]string{"{{", "}}"},
+				data:   data,
+			})
+		}
 	}
 	return specs
 }
