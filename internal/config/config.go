@@ -27,6 +27,7 @@ const (
 	AppTypeDjango  AppType = "django"  // Python
 	AppTypeFlask   AppType = "flask"   // Python
 )
+)
 
 // CIProvider identifies a supported CI/CD provider.
 type CIProvider string

@@ -139,6 +139,23 @@ func detectNode(root string) (DetectionResult, bool, error) {
 	return r, true, nil
 }
 
+// detectPython checks for a Python project via requirements.txt, pyproject.toml, or main.py.
+func detectPython(root string) (DetectionResult, bool, error) {
+	r := DetectionResult{Stack: "python"}
+	for _, f := range []string{"requirements.txt", "pyproject.toml", "setup.py", "main.py", "app.py"} {
+		p := filepath.Join(root, f)
+		if _, err := os.Stat(p); err == nil {
+			r.Indicators = append(r.Indicators, f)
+			if f == "requirements.txt" || f == "pyproject.toml" || f == "setup.py" {
+				r.Lockfile = f
+				r.PackageManager = "pip"
+			}
+			return r, true, nil
+		}
+	}
+	return r, false, nil
+}
+
 // engine implements Detector.
 type engine struct{}
 
