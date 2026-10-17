@@ -221,8 +221,9 @@ func (t templateData) BuildOrDefault() string {
 		return ""
 	case config.AppTypeBinary:
 		return "go build -ldflags=\"-s -w\" -o /out/server ./cmd/devopsgen"
+	default:
+		return "go build -ldflags=\"-s -w\" ./cmd/devopsgen"
 	}
-	return ""
 }
 
 // buildPath returns the configured build path, defaulting to the project root.
