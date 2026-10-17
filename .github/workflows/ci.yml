@@ -9,18 +9,23 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version: '1.25'
+          go-version-file: go.mod
 
       - name: Download dependencies
         run: go mod download
@@ -35,111 +40,118 @@ jobs:
           if [ -n "$fmt_out" ]; then
             echo "gofmt issues in:"
             echo "$fmt_out"
+            gofmt -d .
             exit 1
           fi
 
-      - name: actionlint
+      - name: actionlint (workflows of this repository)
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
           "$(go env GOPATH)"/bin/actionlint -color .github/workflows/ci.yml .github/workflows/release.yml
 
-      - name: Set up Graphite CLI
-        run: |
-          curl -sSLf https://github.com/withgraphite/graphite-cli/releases/latest/download/gt-linux-amd64 -o /usr/local/bin/gt || true
-          chmod +x /usr/local/bin/gt 2>/dev/null || true
-          gt --version || true
-
-      - name: Graphite stack check
-        run: gt stack || true
-
   test:
     name: Test
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        go-version: ['1.24']
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Set up Go ${{ matrix.go-version }}
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: go.mod
 
       - name: Download dependencies
         run: go mod download
 
-      - name: Test with coverage (per package)
+      - name: Test with race detector and coverage
         run: |
-          go test -coverprofile=coverage.out ./internal/...
+          go test -race -cover -coverprofile=coverage.out ./internal/... | tee coverage-pkg.txt
           go tool cover -func=coverage.out > coverage.txt
-          cat coverage.txt
 
-      - name: Enforce coverage floor (80% per core package)
+      - name: Enforce coverage floor (80% per core package and total)
         run: |
-          # Check each core package individually
+          fail=0
           for pkg in config detector generator validator filesystem; do
-            cov=$(go test -coverprofile=/tmp/pkg.out ./internal/$pkg/ 2>/dev/null | grep -oP 'coverage: \K[\d.]+')
-            echo "$pkg coverage: $cov%"
-            awk -v t="$cov" 'BEGIN { if (t < 80) { print "$pkg coverage " t "% is below 80% floor"; exit 1 } }'
+            cov=$(grep -E "/internal/${pkg}[[:space:]]" coverage-pkg.txt | grep -oE 'coverage: [0-9.]+' | grep -oE '[0-9.]+' | head -1)
+            if [ -z "$cov" ]; then
+              echo "::error::no coverage reported for internal/${pkg}"
+              fail=1
+              continue
+            fi
+            echo "${pkg} coverage: ${cov}%"
+            if awk -v c="$cov" 'BEGIN { exit !(c < 80) }'; then
+              echo "::error::internal/${pkg} coverage ${cov}% is below the 80% floor"
+              fail=1
+            fi
           done
-          TOTAL=$(grep -E '^total:' coverage.txt | awk '{print $NF}' | sed 's/%//')
-          echo "Total coverage: $TOTAL%"
-          awk -v t="$TOTAL" 'BEGIN { if (t < 80) { print "total coverage " t "% is below 80% floor"; exit 1 } }'
+          total=$(grep -E '^total:' coverage.txt | awk '{print $NF}' | sed 's/%//')
+          echo "total coverage: ${total}%"
+          if awk -v c="$total" 'BEGIN { exit !(c < 80) }'; then
+            echo "::error::total coverage ${total}% is below the 80% floor"
+            fail=1
+          fi
+          exit $fail
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage
-          path: coverage.txt
+          path: |
+            coverage.txt
+            coverage-pkg.txt
 
   build:
-    name: Build
-    runs-on: ubuntu-latest
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
     needs: [lint, test]
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        arch: [amd64]
+        include:
+          - { os: ubuntu-latest, name: linux-amd64, ext: "" }
+          - { os: macos-latest, name: macos-arm64, ext: "" }
+          - { os: windows-latest, name: windows-amd64, ext: ".exe" }
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version: '1.24'
+          go-version-file: go.mod
 
       - name: Build
-        run: go build -o devopsgen-${{ matrix.os }}-${{ matrix.arch }} ./cmd/devopsgen
+        shell: bash
+        run: go build -o "devopsgen-${{ matrix.name }}${{ matrix.ext }}" ./cmd/devopsgen
 
-      - name: Smoke test
+      - name: Smoke test (native runner)
         shell: bash
         run: |
-          ./devopsgen-${{ matrix.os }}-${{ matrix.arch }} version
-          ./devopsgen-${{ matrix.os }}-${{ matrix.arch }} --help
+          "./devopsgen-${{ matrix.name }}${{ matrix.ext }}" version
+          "./devopsgen-${{ matrix.name }}${{ matrix.ext }}" --help
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: devopsgen-${{ matrix.os }}-${{ matrix.arch }}
-          path: devopsgen-${{ matrix.os }}-${{ matrix.arch }}
+          name: devopsgen-${{ matrix.name }}
+          path: devopsgen-${{ matrix.name }}${{ matrix.ext }}
 
   docker-build-go:
     name: Docker Build (Go)
     runs-on: ubuntu-latest
     needs: [build]
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version: '1.24'
+          go-version-file: go.mod
 
       - name: Generate Go artifacts
         run: |
@@ -149,71 +161,117 @@ jobs:
             --stack go --ci github-actions --registry ghcr \
             --image bangkah/my-app --port 8080 \
             --test-cmd "go test ./..." \
-          --build-path ./cmd/devopsgen \
-          --tag v1 --k8s \
-          --output-dir /tmp/e2e-go
-          cp go.mod go.sum /tmp/e2e-go/
-          cp -r cmd internal /tmp/e2e-go/
+            --build-path ./cmd/devopsgen \
+            --tag v1 --k8s \
+            --output-dir /tmp/e2e-go
+
+      - name: Lint generated workflow (actionlint)
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)"/bin/actionlint -color /tmp/e2e-go/.github/workflows/ci.yml
+
+      - name: Lint generated Dockerfile (hadolint)
+        run: docker run --rm -i hadolint/hadolint:v2.12.0 hadolint --failure-threshold warning - < /tmp/e2e-go/Dockerfile
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Build Go Docker image
         run: |
+          # Build context is the repository root: devopsgen itself is the sample Go project.
+          GO_VERSION=$(awk '/^go /{print $2}' go.mod)
           docker build \
-            --build-arg GO_VERSION=1.24 \
+            --build-arg "GO_VERSION=${GO_VERSION}" \
             -t devopsgen-go-test \
             -f /tmp/e2e-go/Dockerfile \
             .
 
-      - name: Lint generated Dockerfile with hadolint
-        run: docker run --rm -i hadolint/hadolint:v2.12.0 hadolint --failure-threshold warning - < /tmp/e2e-go/Dockerfile
+      - name: Run built image (smoke test)
+        run: docker run --rm devopsgen-go-test version
 
   docker-build-nodejs:
     name: Docker Build (Node.js)
     runs-on: ubuntu-latest
     needs: [build]
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version: '1.24'
+          go-version-file: go.mod
+
+      - name: Create sample Node.js project
+        run: |
+          mkdir -p /tmp/e2e-node
+          cat > /tmp/e2e-node/package.json <<'JSON'
+          {
+            "name": "e2e-sample",
+            "version": "1.0.0",
+            "private": true,
+            "scripts": { "start": "node server.js" }
+          }
+          JSON
+          cat > /tmp/e2e-node/server.js <<'JS'
+          const http = require('http');
+          http.createServer((req, res) => res.end('ok')).listen(3000, '0.0.0.0');
+          JS
 
       - name: Generate Node.js artifacts
         run: |
           go build -o devopsgen ./cmd/devopsgen
-          mkdir -p /tmp/e2e-node
           ./devopsgen init \
             --stack nodejs --app-type express --ci github-actions \
             --registry ghcr --image bangkah/api --port 3000 \
             --start-cmd "node server.js" \
             --output-dir /tmp/e2e-node
 
+      - name: Lint generated workflow (actionlint)
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)"/bin/actionlint -color /tmp/e2e-node/.github/workflows/ci.yml
+
+      - name: Lint generated Dockerfile (hadolint)
+        run: docker run --rm -i hadolint/hadolint:v2.12.0 hadolint --failure-threshold warning - < /tmp/e2e-node/Dockerfile
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Build Node.js Docker image
-        run: |
-          docker build -t devopsgen-node-test -f /tmp/e2e-node/Dockerfile /tmp/e2e-node
+        run: docker build -t devopsgen-node-test -f /tmp/e2e-node/Dockerfile /tmp/e2e-node
 
-      - name: Lint generated Dockerfile with hadolint
-        run: docker run --rm -i hadolint/hadolint:v2.12.0 hadolint --failure-threshold warning - < /tmp/e2e-node/Dockerfile
+      - name: Run built image and check HTTP response
+        run: |
+          docker run -d --name e2e-node -p 3000:3000 devopsgen-node-test
+          for i in $(seq 1 15); do
+            if curl -fsS http://localhost:3000 >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://localhost:3000 | grep -q '^ok$'
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs e2e-node || true
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f e2e-node || true
 
   k8s-validate:
     name: Validate Kubernetes Manifests
     runs-on: ubuntu-latest
     needs: [build]
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version: '1.24'
+          go-version-file: go.mod
 
       - name: Generate K8s artifacts
         run: |
@@ -228,47 +286,55 @@ jobs:
 
       - name: Install kubeconform
         run: |
-          curl -L https://github.com/yannh/kubeconform/releases/download/v0.4.13/kubeconform-linux-amd64.tar.gz \
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz \
             | tar xz -C /usr/local/bin kubeconform
 
       - name: Validate Kubernetes manifests with kubeconform
-        run: |
-          kubeconform /tmp/e2e-k8s/kubernetes/deployment.yaml
-          kubeconform /tmp/e2e-k8s/kubernetes/service.yaml
-          kubeconform /tmp/e2e-k8s/kubernetes/ingress.yaml
+        run: kubeconform -strict -summary /tmp/e2e-k8s/kubernetes/
 
       - name: Validate with DevOpsGen validator
-        run: |
-          ./devopsgen validate --dir /tmp/e2e-k8s
+        run: ./devopsgen validate --dir /tmp/e2e-k8s
 
   e2e:
     name: End-to-end
     runs-on: ubuntu-latest
     needs: [docker-build-go, docker-build-nodejs, k8s-validate]
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version: '1.24'
+          go-version-file: go.mod
 
-      - name: Run end-to-end generation and validate
+      - name: Generate, validate, and check conflict/dry-run behavior
         shell: bash
         run: |
           go build -o devopsgen ./cmd/devopsgen
           mkdir -p /tmp/e2e-final
-          ./devopsgen init \
-            --stack go --ci github-actions --registry ghcr \
-            --image bangkah/my-app --port 8080 \
-            --build-cmd "go build -o server ." --test-cmd "go test ./..." \
-            --tag v1 --k8s --ingress \
-            --ingress-host app.example.com --health-path /health \
-            --output-dir /tmp/e2e-final
-          test -f /tmp/e2e-final/Dockerfile
-          test -f /tmp/e2e-final/.github/workflows/ci.yml
-          test -f /tmp/e2e-final/kubernetes/deployment.yaml
-          test -f /tmp/e2e-final/kubernetes/service.yaml
-          test -f /tmp/e2e-final/kubernetes/ingress.yaml
+          ARGS=(init
+            --stack go --ci github-actions --registry ghcr
+            --image bangkah/my-app --port 8080
+            --build-cmd "go build -o server ." --test-cmd "go test ./..."
+            --tag v1 --k8s --ingress
+            --ingress-host app.example.com --health-path /health
+            --output-dir /tmp/e2e-final)
+
+          ./devopsgen "${ARGS[@]}"
+          for f in Dockerfile .github/workflows/ci.yml \
+                   kubernetes/deployment.yaml kubernetes/service.yaml kubernetes/ingress.yaml; do
+            test -f "/tmp/e2e-final/$f"
+          done
           ./devopsgen validate --dir /tmp/e2e-final
+
+          # FR-11: a second run without --force must fail with exit code 3 (conflict).
+          code=0; ./devopsgen "${ARGS[@]}" || code=$?
+          test "$code" -eq 3
+
+          # FR-10: --dry-run with --force must succeed and leave files untouched.
+          before=$(cd /tmp/e2e-final && find . -type f -exec sha256sum {} + | sort)
+          ./devopsgen "${ARGS[@]}" --dry-run --force
+          after=$(cd /tmp/e2e-final && find . -type f -exec sha256sum {} + | sort)
+          test "$before" = "$after"
