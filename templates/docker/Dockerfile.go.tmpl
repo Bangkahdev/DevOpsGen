@@ -22,7 +22,7 @@ RUN mkdir -p /out && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} {{.BuildOrDef
 
 FROM scratch
 
-COPY --from=builder /src/devopsgen /server
+COPY --from=builder /out/server /server
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 EXPOSE {{.Port}}
