@@ -220,7 +220,7 @@ func (t templateData) BuildOrDefault() string {
 	case config.AppTypeGeneric:
 		return ""
 	case config.AppTypeBinary:
-		return "go build -ldflags=\"-s -w\" -o /out/server " + t.buildPath()
+		return "go build -ldflags=\"-s -w\" " + t.buildPath()
 	}
 	return ""
 }
