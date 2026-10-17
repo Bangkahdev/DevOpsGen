@@ -43,6 +43,15 @@ jobs:
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
           "$(go env GOPATH)"/bin/actionlint -color .github/workflows/ci.yml .github/workflows/release.yml
 
+      - name: Set up Graphite CLI
+        run: |
+          curl -sSL https://github.com/withgraphite/graphite-cli/releases/latest/download/gt-linux-amd64 -o /usr/local/bin/gt
+          chmod +x /usr/local/bin/gt
+          gt --version
+
+      - name: Graphite stack check
+        run: gt stack || true
+
   test:
     name: Test
     runs-on: ubuntu-latest
