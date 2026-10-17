@@ -12,7 +12,7 @@ func TestTemplateData_BuildOrDefault(t *testing.T) {
 		cfg  config.Config
 		want string
 	}{
-		{cfg: config.Config{Stack: config.StackGo, AppType: config.AppTypeBinary}, want: "go build -ldflags=\"-s -w\" ./cmd/devopsgen"},
+		{cfg: config.Config{Stack: config.StackGo, AppType: config.AppTypeBinary}, want: "go build -ldflags=\"-s -w\" ."},
 		{cfg: config.Config{Stack: config.StackGo, AppType: config.AppTypeBinary, BuildCmd: "go build -o bin ."}, want: "go build -o bin ."},
 		{cfg: config.Config{Stack: config.StackNode, AppType: config.AppTypeNextJS}, want: "npm run build"},
 		{cfg: config.Config{Stack: config.StackNode, AppType: config.AppTypeNextJS, BuildCmd: "next build"}, want: "next build"},
