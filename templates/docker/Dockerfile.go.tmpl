@@ -21,11 +21,11 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} {{.BuildOrDefault}}
+RUN mkdir -p /out && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} {{.BuildOrDefault}}
 
 FROM scratch
 
-COPY --from=builder /server /server
+COPY --from=builder /out/server /server
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 EXPOSE {{.Port}}
