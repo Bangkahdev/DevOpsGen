@@ -139,7 +139,7 @@ jobs:
           ./devopsgen init \
             --stack go --ci github-actions --registry ghcr \
             --image bangkah/my-app --port 8080 \
-            --build-cmd "go build -o server ." --test-cmd "go test ./..." \
+            --test-cmd "go test ./..." \
             --build-path ./cmd/devopsgen \
             --tag v1 --k8s \
             --output-dir /tmp/e2e-go
