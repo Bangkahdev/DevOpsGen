@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"devopsgen.dev/devopsgen/internal/config"
+	"devopsgen.dev/devopsgen/internal/generator"
 )
 
 func goDockerfile(t *testing.T, appType config.AppType) string {
 	t.Helper()
-	arts, err := New().Generate(config.Config{
+	arts, err := generator.New().Generate(config.Config{
 		Stack: config.StackGo, AppType: appType, CI: config.CIGitHubActions,
 		Registry: config.RegistryGHCR, Image: "bangkah/my-app", Port: 8080,
 	})
