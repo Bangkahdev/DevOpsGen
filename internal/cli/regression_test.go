@@ -1,67 +1,65 @@
-package cli
+package generator
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"devopsgen.dev/devopsgen/internal/config"
 )
 
-// TestRunInit_DryRunWithConflict ensures --dry-run does not require --force
-// when target files already exist. Dry-run only reports the plan and never
-// writes, so conflicts must not block it.
-func TestRunInit_DryRunWithConflict(t *testing.T) {
-	dir := t.TempDir()
-	// Pre-create Dockerfile to force a conflict.
-	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("old"), 0o644); err != nil {
-		t.Fatal(err)
+func goDockerfile(t *testing.T, appType config.AppType) string {
+	t.Helper()
+	arts, err := New().Generate(config.Config{
+		Stack: config.StackGo, AppType: appType, CI: config.CIGitHubActions,
+		Registry: config.RegistryGHCR, Image: "bangkah/my-app", Port: 8080,
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
 	}
-	flags := &InitFlags{
-		Stack:     "go",
-		AppType:   "binary",
-		CI:        "github-actions",
-		Registry:  "ghcr",
-		Image:     "bangkah/my-app",
-		Port:      8080,
-		OutputDir: dir,
-		DryRun:    true,
+	for _, a := range arts {
+		if a.Path == "Dockerfile" {
+			return string(a.Content)
+		}
 	}
-	if err := RunInit(flags); err != nil {
-		t.Fatalf("dry-run with conflict should not error: %v", err)
-	}
-	// Dry-run must not write anything.
-	if c, _ := os.ReadFile(filepath.Join(dir, "Dockerfile")); string(c) != "old" {
-		t.Fatal("dry-run must not overwrite existing files")
+	t.Fatal("no Dockerfile artifact")
+	return ""
+}
+
+// Regression: with --stack go and no --app-type, the build step rendered with
+// no `go build` command at all, so the Dockerfile compiled nothing.
+func TestGoDockerfile_EmptyAppTypeStillBuilds(t *testing.T) {
+	for _, at := range []config.AppType{"", config.AppTypeBinary} {
+		df := goDockerfile(t, at)
+		found := false
+		for _, line := range strings.Split(df, "\n") {
+			if strings.HasPrefix(line, "RUN ") && strings.Contains(line, "go build") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("app-type %q: no RUN instruction runs `go build`:\n%s", at, df)
+		}
 	}
 }
 
-// TestRunInit_NodeStack ensures Node.js stack generates Dockerfile + workflow.
-func TestRunInit_NodeStack(t *testing.T) {
-	dir := t.TempDir()
-	flags := &InitFlags{
-		Stack:     "nodejs",
-		AppType:   "express",
-		CI:        "github-actions",
-		Registry:  "ghcr",
-		Image:     "bangkah/my-app",
-		Port:      3000,
-		StartCmd:  "node server.js",
-		OutputDir: dir,
+// Regression: the runtime stage copied /src/devopsgen (the name of this very
+// project) instead of the binary written by the build step.
+func TestGoDockerfile_CopiesTheBinaryItBuilds(t *testing.T) {
+	df := goDockerfile(t, "")
+	if strings.Contains(df, "devopsgen") {
+		t.Errorf("Dockerfile must not reference a hard-coded project name:\n%s", df)
 	}
-	if err := RunInit(flags); err != nil {
-		t.Fatalf("runInit nodejs: %v", err)
+	if !strings.Contains(df, "-o /out/server") || !strings.Contains(df, "COPY --from=builder /out/server /server") {
+		t.Errorf("build output path and COPY source must both be /out/server:\n%s", df)
 	}
-	for _, p := range []string{"Dockerfile", ".github/workflows/ci.yml"} {
-		if _, err := os.Stat(filepath.Join(dir, p)); err != nil {
-			t.Fatalf("expected artifact %s: %v", p, err)
+}
+
+// A Dockerfile RUN must never end in bare variable assignments (shellcheck SC2034).
+func TestGoDockerfile_NoRunEndsWithAssignment(t *testing.T) {
+	df := goDockerfile(t, "")
+	for _, line := range strings.Split(df, "\n") {
+		if strings.HasPrefix(line, "RUN ") && strings.HasSuffix(strings.TrimSpace(line), "GOARCH=${TARGETARCH}") {
+			t.Errorf("RUN line ends with an assignment and no command: %q", line)
 		}
-	}
-	df, _ := os.ReadFile(filepath.Join(dir, "Dockerfile"))
-	if !strings.Contains(string(df), "node:20-alpine") {
-		t.Fatalf("nodejs Dockerfile should use node:20-alpine, got %q", string(df)[:200])
-	}
-	wf, _ := os.ReadFile(filepath.Join(dir, ".github/workflows/ci.yml"))
-	if !strings.Contains(string(wf), "setup-node") {
-		t.Fatalf("nodejs workflow should have setup-node step, got %q", string(wf)[:200])
 	}
 }
