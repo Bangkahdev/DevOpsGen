@@ -254,9 +254,10 @@ func (t templateData) StartOrDefault() string {
 	case config.AppTypeGeneric:
 		return pm + " run start"
 	case config.AppTypeBinary:
-		return "/server"
+		return "go build -ldflags=\"-s -w\" -o /out/server ./cmd/devopsgen"
+	default:
+		return "go build -ldflags=\"-s -w\" ./cmd/devopsgen"
 	}
-	return ""
 }
 
 // packageManager returns the package manager invocation prefix for Node.js.
