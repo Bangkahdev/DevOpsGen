@@ -158,9 +158,7 @@ jobs:
             .
 
       - name: Lint generated Dockerfile with hadolint
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: /tmp/e2e-go/Dockerfile
+        run: docker run --rm -i hadolint/hadolint:v2.12.0 hadolint --failure-threshold warning - < /tmp/e2e-go/Dockerfile
 
   docker-build-nodejs:
     name: Docker Build (Node.js)
@@ -193,9 +191,7 @@ jobs:
           docker build -t devopsgen-node-test -f /tmp/e2e-node/Dockerfile /tmp/e2e-node
 
       - name: Lint generated Dockerfile with hadolint
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: /tmp/e2e-node/Dockerfile
+        run: docker run --rm -i hadolint/hadolint:v2.12.0 hadolint --failure-threshold warning - < /tmp/e2e-node/Dockerfile
 
   k8s-validate:
     name: Validate Kubernetes Manifests
