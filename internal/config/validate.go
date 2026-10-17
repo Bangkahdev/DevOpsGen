@@ -1,4 +1,3 @@
-
 // Package config provides validation helpers for Config fields.
 //
 // Validation is pure and side-effect free: it never touches the
@@ -30,7 +29,6 @@ var (
 )
 
 // RFC 1123 hostname: lowercase labels of 1-63 chars, alnum and '-'.
-// Length is enforced separately in validateHostname.
 var hostnameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$`)
 
 // imageRe enforces "namespace/repository" with no host and no tag.
