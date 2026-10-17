@@ -140,9 +140,11 @@ jobs:
             --stack go --ci github-actions --registry ghcr \
             --image bangkah/my-app --port 8080 \
             --test-cmd "go test ./..." \
-            --build-path ./cmd/devopsgen \
-            --tag v1 --k8s \
-            --output-dir /tmp/e2e-go
+          --build-path ./cmd/devopsgen \
+          --tag v1 --k8s \
+          --output-dir /tmp/e2e-go
+          cp go.mod go.sum /tmp/e2e-go/
+          cp -r cmd /tmp/e2e-go/
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
