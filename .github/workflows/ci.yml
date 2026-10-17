@@ -164,7 +164,7 @@ jobs:
             --build-arg GO_VERSION=1.24 \
             -t devopsgen-go-test \
             -f /tmp/e2e-go/Dockerfile \
-            .
+            /tmp/e2e-go/
 
       - name: Lint generated Dockerfile with hadolint
         run: docker run --rm -i hadolint/hadolint:v2.12.0 hadolint --failure-threshold warning - < /tmp/e2e-go/Dockerfile
