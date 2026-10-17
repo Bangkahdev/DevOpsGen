@@ -96,7 +96,16 @@ func (f *RealFS) PlanBuild(artifacts map[string][]byte) (Plan, error) {
 				p.Dirs = append(p.Dirs, dir)
 			}
 		} else {
-			return Plan{}, fmt.Errorf("filesystem: stat %q: %w", clean, statErr)
+			// lstat failed for a reason other than "not exists" (e.g. a parent
+			// component is a regular file, so the target path cannot be
+			// resolved on some platforms). Treat the target as a create
+			// candidate; Commit will surface the real error (and roll back)
+			// when it cannot create the parent directories.
+			p.Create = append(p.Create, clean)
+			dir := filepath.Dir(clean)
+			if !dirExists(p.Dirs, dir) {
+				p.Dirs = append(p.Dirs, dir)
+			}
 		}
 	}
 	// Sort directories deepest-first for creation, and reverse for cleanup.
