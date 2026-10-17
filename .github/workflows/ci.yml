@@ -184,7 +184,7 @@ jobs:
             --build-arg "GO_VERSION=${GO_VERSION}" \
             -t devopsgen-go-test \
             -f /tmp/e2e-go/Dockerfile \
-            .
+            /tmp/e2e-go/
 
       - name: Run built image (smoke test)
         run: docker run --rm devopsgen-go-test version

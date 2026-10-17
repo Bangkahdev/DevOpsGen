@@ -5,14 +5,15 @@
 | Informasi | Detail |
 |---|---|
 | Nama proyek | DevOpsGen |
-| Versi dokumen | 1.2.0 |
-| Status | Approved for Implementation |
+| Versi dokumen | 1.2.1 |
+| Status | Approved for Implementation (revisi 1.2.1 menunggu peninjauan maintainer) |
 | Jenis aplikasi | Command Line Interface (CLI) dan Terminal User Interface (TUI) |
 | Bahasa pemrograman | Go (Golang) |
 | Lisensi | Apache License 2.0 |
 | Target pengguna | Software Engineer, Backend Developer, DevOps Engineer, dan mahasiswa |
 | Target platform | Linux, macOS Intel/Apple Silicon, dan Windows pada arsitektur yang dinyatakan didukung dan diuji |
-| Tanggal baseline | 16 Oktober 2026 |
+| Tanggal baseline | 16 Oktober 2026 (v1.2.0) |
+| Tanggal revisi terakhir | 17 Oktober 2026 (v1.2.1) |
 
 ### Riwayat Revisi
 
@@ -21,6 +22,7 @@
 | 1.0.0 | — | Baseline awal spesifikasi. |
 | 1.1.0 | — | Penambahan matriks parameter, enum AppType, kontrak core engine, baseline benchmark, dan persyaratan validasi artefak. |
 | 1.2.0 | 2026-10-16 | Finalisasi aturan resolusi konfigurasi, alur dan prioritas kegagalan, semantik test stage yang dilewati, semantik image/tag, keselamatan filesystem, rollback best-effort, serta perilaku port dan health probe. |
+| 1.2.1 | 2026-10-17 | Penyelarasan dengan implementasi MVP: parameter `build-path` dan nilai turunan `package-manager`; strategi runtime Go (`scratch`, `GO_VERSION`); perilaku template Vite, Next.js, dan NestJS; aturan validasi `tag` lengkap; penamaan resource Kubernetes; urutan artefak deterministik; kontrak `Config` dan `Validator`; status validator eksternal; struktur repositori; AC-18. Pembersihan kalimat ganda dan penggabungan dua salinan dokumen menjadi satu sumber (`docs/SRS.md`). Menambahkan Lampiran A (catatan kesesuaian implementasi). |
 
 ---
 
@@ -108,7 +110,7 @@ MVP mencakup:
 - Manifest Kubernetes standar: Deployment dan Service, serta Ingress jika diminta.
 - CLI, TUI, deteksi stack, validasi, dan filesystem safety.
 
-Python, PHP/Laravel, Helm, Argo CD, Flux, provider CI/CD lain, serta mekanisme deployment otomatis berada di luar scope MVP. Tipe Python yang mungkin muncul dalam kode sebagai bentuk persiapan struktural tidak mengubah keterbatasan MVP ini dan tidak boleh diekspos sebagai fitur yang didukung melalui command atau dokumentasi penggunaan.
+Python, PHP/Laravel, Helm, Argo CD, Flux, provider CI/CD lain, serta mekanisme deployment otomatis berada di luar scope MVP. Kode, template, dan dokumentasi penggunaan MVP tidak boleh mengekspos dukungan untuk hal-hal tersebut.
 
 ### 2.4 Asumsi dan Dependensi
 
@@ -139,7 +141,15 @@ Dockerfile yang dihasilkan harus:
 - Menggunakan non-root user apabila kompatibel dengan aplikasi dan runtime.
 - Memperhitungkan dependensi runtime, sertifikat CA, dan kebutuhan file aplikasi.
 
-Pilihan runtime dapat menggunakan distroless atau Alpine jika sesuai. Template tidak boleh mengasumsikan binary statis atau kompatibilitas libc tanpa dasar yang jelas.
+Template Go MVP memakai strategi berikut, yang menjadi dasar terdokumentasi untuk asumsi binary statis:
+
+- Tahap build memakai `golang:${GO_VERSION}-alpine` dengan `CGO_ENABLED=0`, sehingga binary tidak membutuhkan libc.
+- Runtime memakai `scratch`; sertifikat CA disalin dari tahap build dan proses berjalan sebagai user non-root `1000:1000`.
+- `GO_VERSION` adalah `ARG` build dengan default `1.24`. Nilainya harus lebih besar atau sama dengan direktif `go` pada `go.mod` proyek dan dapat diganti dengan `docker build --build-arg GO_VERSION=<versi>`. Template menetapkan `GOTOOLCHAIN=auto` sebagai jaring pengaman, yang membutuhkan akses jaringan saat build.
+- Paket yang dibangun ditentukan oleh parameter `build-path` (default `.`).
+- Proyek yang membutuhkan cgo atau komponen runtime tambahan (misalnya shell atau data zona waktu) tidak kompatibel dengan template bawaan dan harus menyesuaikan Dockerfile hasil generasi.
+
+Template tidak boleh menggunakan asumsi lain tentang libc atau runtime di luar yang tercantum di atas.
 
 Nilai port atau instruksi `EXPOSE` tidak membuat aplikasi otomatis mendengarkan pada port tersebut. Aplikasi wajib mengikat listener ke port yang benar-benar dikonfigurasikan; DevOpsGen tidak mengubah source code aplikasi.
 
@@ -179,15 +189,17 @@ Keberadaan script tidak menjamin script itu benar untuk produksi. DevOpsGen tida
 | Lockfile dikenali | Pilih prosedur instalasi dependency yang sesuai. |
 | Beberapa lockfile bertentangan | Laporkan ambiguitas; jangan memilih package manager secara diam-diam. |
 
+Package manager ditentukan dari lockfile yang terdeteksi (`package-lock.json` atau `npm-shrinkwrap.json` untuk npm, `pnpm-lock.yaml` untuk pnpm, `yarn.lock` untuk yarn) dan disimpan sebagai nilai turunan `package-manager`; nilai ini bukan flag. Tanpa lockfile, npm digunakan dan peringatan ditampilkan. Dockerfile dan workflow yang dihasilkan harus memakai package manager yang sama untuk instalasi dependency dan untuk perintah build/start default.
+
 ### 3.3 Jenis Aplikasi (AppType)
 
 | Stack | Nilai | Perilaku template |
 |---|---|---|
 | Go | `binary` | Menghasilkan satu binary aplikasi dan menjalankan binary tersebut secara langsung. |
 | Node.js | `express` | Aplikasi server HTTP Express. Startup harus sesuai script/perintah yang tervalidasi. |
-| Node.js | `nextjs` | Build Next.js dan runtime `next start` atau mode standalone jika konfigurasi proyek mendukungnya. |
-| Node.js | `vite` | Build aset statis dan sajikan menggunakan template static server. Startup Node.js tidak diperlukan jika template static server yang dipilih tidak menggunakannya. |
-| Node.js | `nestjs` | Build NestJS dan jalankan output yang benar-benar dihasilkan proyek, misalnya file di `dist`, setelah dikonfirmasi. |
+| Node.js | `nextjs` | Build Next.js dan runtime `next start` pada port konfigurasi. Mode standalone tidak didukung pada MVP. |
+| Node.js | `vite` | Build aset statis ke `dist/`. Runtime memakai server preview bawaan Vite (`<package-manager> run preview -- --port <port>`) kecuali `start-cmd` diberikan. Server preview ditujukan untuk pratinjau, bukan server produksi; dokumentasi harus menyarankan static server khusus untuk produksi. |
+| Node.js | `nestjs` | Build NestJS dan jalankan output proyek. Kandidat startup default adalah `node dist/main.js`; pengguna harus mengonfirmasinya atau menggantinya melalui `start-cmd` bila output proyek berbeda. |
 | Node.js | `generic` | Aplikasi Node.js tanpa framework teridentifikasi; perintah build dan startup harus diberikan secara eksplisit jika dibutuhkan. |
 
 Nilai di luar daftar ditolak dengan exit code `2`. Jika deteksi memberikan lebih dari satu kandidat yang masuk akal, mode interaktif meminta pilihan; mode non-interaktif mengembalikan exit code `5`.
@@ -214,8 +226,10 @@ Parameter berikut menjadi kontrak konfigurasi MVP. “Wajib” berarti proses ti
 | `image` | Wajib | Wajib | Repository image dalam bentuk `namespace/repository`, tanpa hostname registry dan tanpa tag. Contoh: `bangkah/my-app`. |
 | `port` | Wajib | Wajib | Rentang 1–65535. Harus sesuai dengan port listener aplikasi. Jangan menebak dari port umum framework. |
 | `build-cmd` | Opsional | Opsional bersyarat | Go: default template yang teruji. Node.js: gunakan kandidat yang terdeteksi atau default framework yang tervalidasi; bila tidak tersedia, wajib eksplisit. |
-| `test-cmd` | Opsional | Opsional | Jika tidak tersedia, test stage dilewati secara transparan dan bukan dilaporkan sebagai berhasil. |
-| `start-cmd` | Tidak berlaku | Wajib bersyarat | Go menjalankan binary. Node.js memerlukan perintah untuk server runtime; template Vite static server dapat memakai entrypoint server bawaan tanpa `start-cmd` Node.js. |
+| `build-path` | Opsional | Tidak berlaku | Path paket Go yang dibangun di dalam container (`go build <build-path>`). Default `.`. Dipakai jika `main` berada di subdirektori, misalnya `./cmd/server`. |
+| `package-manager` | Tidak berlaku | Turunan | Bukan flag. Ditentukan dari lockfile oleh deteksi (npm, pnpm, atau yarn); default npm. Lihat 3.2.2. |
+| `test-cmd` | Opsional | Opsional | Perintah shell lengkap yang ditulis apa adanya ke workflow (contoh: `go test ./...`, `npm test`); DevOpsGen tidak menambahkan awalan package manager. Jika tidak tersedia, test stage dilewati secara transparan dan bukan dilaporkan sebagai berhasil. |
+| `start-cmd` | Tidak berlaku | Wajib bersyarat | Go menjalankan binary. Node.js memerlukan perintah untuk server runtime; default template (misalnya `vite preview`) hanya menjadi kandidat yang ditampilkan untuk dikonfirmasi dan tidak boleh dipakai secara diam-diam. |
 | `app-type` | Opsional | Opsional | Enum pada bagian 3.3; nilai default hanya jika deteksi jelas. |
 | `tag` | Opsional | Opsional | Tag alias tambahan; default alias adalah `latest`. Workflow wajib menerbitkan tag commit SHA dan alias ini. Tag `latest` tidak boleh menjadi satu-satunya tag. Nilai tag harus memenuhi aturan validasi tag pada FR-09. |
 | `k8s` | Opsional | Opsional | Default: menghasilkan Deployment dan Service. Dapat dinonaktifkan secara eksplisit. |
@@ -301,6 +315,8 @@ Dockerfile harus:
 - Menggunakan command build/start yang diselesaikan melalui aturan 4.2.
 - Menghasilkan konten deterministik.
 
+Dockerfile Node.js memasang dependency sesuai lockfile (`npm ci` bila `package-lock.json` ada, `npm install` bila tidak, atau perintah package manager lain yang sesuai dengan 3.2.2). Template tidak boleh membuat berkas proyek palsu (misalnya `go.mod` atau `package.json` sementara) untuk menutupi berkas yang hilang; build harus gagal dengan jelas bila berkas wajib tidak ada.
+
 Pengecualian dari non-root hanya diperbolehkan jika terdapat kebutuhan kompatibilitas yang jelas dan alasan tersebut didokumentasikan. Template wajib memperhitungkan permission file, direktori kerja, CA certificates, dan kebutuhan runtime yang diketahui.
 
 ### FR-06: Generasi GitHub Actions
@@ -318,6 +334,8 @@ Workflow harus mencakup langkah yang relevan untuk:
 Workflow harus selalu menerbitkan tag commit SHA `${{ github.sha }}` sebagai tag immutable yang dapat ditelusuri ke commit sumber. Workflow juga menerbitkan alias `latest` secara default, atau alias kustom dari parameter `tag` jika diberikan. Tag commit SHA tetap wajib diterbitkan, sehingga alias mutable tidak pernah menjadi satu-satunya tag.
 
 Jika test command tidak tersedia, workflow harus menyatakan dengan jelas bahwa test stage dilewati karena belum dikonfigurasi. Workflow harus menambahkan ringkasan atau notice yang eksplisit, tidak boleh membuat langkah test palsu, dan tidak boleh melaporkan bahwa pengujian berhasil jika pengujian tidak dijalankan. Status workflow yang sukses hanya berarti langkah yang benar-benar dikonfigurasi telah berhasil.
+
+Pada event `pull_request`, workflow menjalankan test dan membangun image tetapi tidak login ke registry dan tidak mem-publish image. Versi runtime Go diambil dari `go.mod`. Setiap action pihak ketiga dipin ke commit SHA lengkap.
 
 Workflow harus memakai permission minimum yang diperlukan, menghindari token yang tidak digunakan, dan tidak menjalankan publish sebelum prasyarat test/build yang dikonfigurasi berhasil. Penggunaan action pihak ketiga harus memakai referensi versi yang eksplisit dan tidak bergantung pada branch bergerak seperti `main` atau `master`.
 
@@ -400,6 +418,10 @@ Container sebaiknya berjalan sebagai non-root jika kompatibel. Port pada manifes
 
 Deployment menggunakan nama image yang berasal dari registry dan `image` pada konfigurasi. Tag manifest harus sama dengan alias yang diterbitkan workflow: `latest` secara default atau nilai parameter `tag` jika diberikan. Workflow juga harus menerbitkan tag commit SHA. Dokumentasi harus menyarankan penggunaan tag immutable atau digest untuk deployment produksi.
 
+#### 4.8.6 Penamaan Resource dan Label
+
+Nama resource Kubernetes diturunkan dari segmen terakhir `image`, diubah ke huruf kecil, dengan karakter di luar `a-z`, `0-9`, `-`, dan `.` diganti `-`, tanda `-` dan `.` di awal dan akhir dibuang, dan dipotong maksimal 253 karakter. Jika hasilnya kosong, nama `app` digunakan. Label `app: <nama>` dipakai konsisten pada Deployment (selector dan template Pod), Service (selector), dan Ingress (backend).
+
 ### FR-09: Validasi Input
 
 Sistem harus memvalidasi:
@@ -413,7 +435,7 @@ Sistem harus memvalidasi:
 - Konsistensi stack, runtime, build/start command, port, dan opsi Kubernetes.
 - Hostname Ingress berdasarkan aturan RFC 1123.
 - Perintah kustom sebagai string satu baris tanpa karakter kontrol yang dapat merusak struktur artefak.
-- Nilai `tag`: maksimal 128 karakter, hanya boleh mengandung karakter alfanumerik, `_`, `.`, dan `-`, tidak boleh mengandung newline, whitespace, atau karakter shell seperti `;`, `&`, `|`, `` ` ``, `$`, `(`, `)`, `{`, `}`, `[`, `]`, `<`, `>`, `\`, `!`, atau karakter yang dapat mengubah struktur YAML/shell. Nilai tag tidak boleh kosong jika diberikan.
+- Nilai `tag`: maksimal 128 karakter, hanya boleh mengandung karakter alfanumerik, `_`, `.`, dan `-`, tidak boleh mengandung newline, whitespace, atau karakter shell seperti `;`, `&`, `|`, `` ` ``, `$`, `(`, `)`, `{`, `}`, `[`, `]`, `<`, `>`, `\`, `!`, `#`, `%`, `@`, `:`, atau karakter yang dapat mengubah struktur YAML/shell. Nilai tag tidak boleh kosong jika diberikan.
 
 Command kustom tetap merupakan kode yang dipercaya pengguna dan dapat dieksekusi ketika Dockerfile atau workflow dijalankan. DevOpsGen harus menghindari penyisipan tidak sengaja ke struktur YAML/Dockerfile dan mendokumentasikan risiko command kustom.
 
@@ -485,13 +507,15 @@ Secara default, sistem memvalidasi artefak yang didukung pada direktori kerja. S
 - Struktur dasar GitHub Actions workflow.
 - Konsistensi port dan health probe jika dikonfigurasi.
 
-Pemeriksaan harus dilakukan secara rekursif pada direktori target, termasuk subdirektori seperti `.github/workflows/` dan `kubernetes/`. Direktori tanpa artefak yang sesuai tidak dianggap sukses secara automatik.
+Pemeriksaan harus dilakukan secara rekursif pada direktori target, termasuk subdirektori seperti `.github/workflows/` dan `kubernetes/`. Direktori tanpa artefak yang sesuai tidak dianggap sukses secara otomatis.
 
 Validasi internal wajib berjalan walaupun validator eksternal tidak tersedia. Validator eksternal bersifat tambahan dan tidak menggantikan validasi internal. Hasil harus membedakan status valid, tidak valid, dan pemeriksaan eksternal yang dilewati.
 
-Contoh pesan:
+Pada MVP, integrasi validator eksternal belum diimplementasikan; validasi internal yang berhasil dilaporkan bersama status `external validation skipped`. Contoh pesan:
 
-`Internal validation passed; external validation skipped: kubeconform not found.`
+`Internal validation passed; external validation skipped`
+
+Setelah integrasi validator eksternal tersedia, pesan harus menyebut alasan pemeriksaan dilewati (misalnya `kubeconform not found`).
 
 Jika validasi artefak gagal, exit code adalah `4`. Jika alat eksternal tidak tersedia tetapi validasi internal berhasil, kondisi itu sendiri bukan kegagalan validasi.
 
@@ -569,7 +593,7 @@ Versi template mengikuti versi binary pada MVP. Template dibundel menggunakan `e
 Untuk versi binary dan konfigurasi yang sama:
 
 - Isi setiap artefak harus identik.
-- Urutan artefak yang dilaporkan harus konsisten.
+- Urutan artefak yang dilaporkan harus konsisten, yaitu terurut leksikografis berdasarkan path.
 - Output tidak boleh bergantung pada urutan iterasi map yang tidak deterministik.
 - Nilai lingkungan runtime tidak boleh disisipkan ke file hasil generasi kecuali menjadi bagian eksplisit dari konfigurasi.
 
@@ -619,7 +643,7 @@ Build dan release diotomatisasi menggunakan GitHub Actions dan GoReleaser. Setia
 
 | Komponen | Teknologi |
 |---|---|
-| Bahasa | Go |
+| Bahasa | Go (minimal 1.24.2, sesuai `go.mod`) |
 | CLI | Cobra |
 | TUI | Bubble Tea |
 | Template engine | `text/template` |
@@ -627,12 +651,15 @@ Build dan release diotomatisasi menggunakan GitHub Actions dan GoReleaser. Setia
 | Unit testing | Standard library `testing` |
 | CI | GitHub Actions |
 | Release | GoReleaser |
-| YAML parser | Library YAML Go yang teruji |
+| YAML parser | `go.yaml.in/yaml/v4` (parser struktural) |
 
 ### 6.2 Struktur Repositori
 
 ```text
 devopsgen/
+├── .github/
+│   └── workflows/            # ci.yml, release.yml
+├── .goreleaser.yaml
 ├── cmd/
 │   └── devopsgen/
 │       └── main.go
@@ -647,18 +674,19 @@ devopsgen/
 │   ├── validator/
 │   └── filesystem/
 ├── templates/
-│   ├── docker/
-│   ├── github-actions/
-│   └── kubernetes/
+│   ├── embed.go
+│   ├── docker/               # Dockerfile.{go,express,nextjs,vite,nestjs,generic}.tmpl
+│   ├── github-actions/       # ci-workflow.yaml.tmpl
+│   └── kubernetes/           # {deployment,service,ingress}.yaml.tmpl
 ├── tests/
-├── docs/
+├── docs/                     # SRS.md (sumber tunggal), RELEASE.md
 ├── go.mod
 ├── Makefile
 ├── README.md
 └── LICENSE
 ```
 
-Struktur tersebut merupakan baseline. Implementasi boleh menambahkan subpaket bila diperlukan, dengan tetap mempertahankan pemisahan tanggung jawab.
+Struktur tersebut merupakan baseline. Implementasi boleh menambahkan subpaket bila diperlukan, dengan tetap mempertahankan pemisahan tanggung jawab. Berkas hasil generasi (misalnya `Dockerfile` atau `kubernetes/` di root) tidak boleh di-commit ke repositori DevOpsGen; pengujian memakai direktori sementara.
 
 ### 6.3 Tanggung Jawab Modul
 
@@ -683,23 +711,25 @@ type StackType string
 type AppType string
 
 type Config struct {
-    Stack      StackType
-    AppType    AppType
-    CI         string
-    Registry   string
-    Image      string
-    Port       int
-    BuildCmd   string
-    TestCmd    string
-    StartCmd   string
-    Tag        string
-    K8s        K8sOptions
-    OutputDir  string
-    Generation GenerationOptions
+    Stack          StackType
+    AppType        AppType
+    CI             CIProvider
+    Registry       Registry
+    Image          string // namespace/repository, tanpa host dan tag
+    Port           int
+    BuildCmd       string
+    TestCmd        string
+    StartCmd       string
+    Tag            string // alias tambahan; default "latest"
+    BuildPath      string // paket Go yang dibangun; default "."
+    K8s            K8sOptions
+    OutputDir      string
+    Generation     GenerationOptions
+    PackageManager string // turunan dari deteksi: npm, pnpm, atau yarn
 }
 ```
 
-`Config` juga harus mencakup opsi yang dibutuhkan untuk Ingress, health path, dan konfigurasi khusus lain yang benar-benar dipakai oleh template MVP. Field wajib harus tervalidasi sebelum proses generator dijalankan. Contoh model opsi Kubernetes dan opsi operasi adalah sebagai berikut:
+Field wajib harus tervalidasi sebelum proses generator dijalankan. `PackageManager` diisi oleh deteksi, bukan oleh flag. Model opsi Kubernetes dan opsi operasi adalah sebagai berikut:
 
 ```go
 type K8sOptions struct {
@@ -739,10 +769,20 @@ type Generator interface {
 ```go
 package validator
 
+type Result int
+
+const (
+    ResultValid Result = iota
+    ResultInvalid
+    ResultExternalSkipped
+)
+
 type Validator interface {
-    Validate(artifacts []output.Artifact) error
+    Validate(artifacts []output.Artifact) (Result, error)
 }
 ```
+
+Validator menjalankan pemeriksaan per artefak, lalu pemeriksaan konsistensi lintas resource (selector Service terhadap label Deployment, backend Ingress terhadap Service, dan konsistensi port).
 
 Modul filesystem harus memiliki tahapan terpisah untuk membuat rencana, memeriksa konflik, menjalankan dry-run, menyiapkan backup, commit, dan rollback. Operasi filesystem harus dapat diganti atau diinjeksi pada pengujian agar kegagalan I/O dapat disimulasikan.
 
@@ -890,6 +930,10 @@ Jika test command tidak dikonfigurasi, workflow menampilkan notice atau summary 
 
 `EXPOSE`, `containerPort`, dan Service `targetPort` harus mencerminkan konfigurasi port. Probe HTTP hanya dibuat jika health path yang valid dikonfigurasi atau terdeteksi dari indikator eksplisit.
 
+### AC-18: Lint Artefak Hasil Generasi
+
+Pipeline CI menghasilkan artefak untuk konfigurasi representatif (minimal satu Go dan satu Node.js, dengan Kubernetes dan Ingress aktif) dan memeriksanya dengan `actionlint` untuk workflow, `hadolint` (ambang `warning`) untuk Dockerfile, dan `kubeconform` untuk manifest. Selain itu, `docker build` pada Dockerfile hasil generasi harus berhasil untuk proyek contoh yang valid.
+
 ---
 
 ## 9. Roadmap Implementasi
@@ -999,6 +1043,8 @@ MVP dinyatakan siap dirilis apabila:
 13. Exit code dan aturan short-circuit diuji sesuai AC-15.
 14. Test stage yang tidak dikonfigurasi dilaporkan sebagai dilewati, bukan berhasil.
 15. Template tidak membuat klaim bahwa port, health endpoint, atau nilai resource telah diverifikasi jika bukti tidak tersedia.
+16. Artefak hasil generasi lolos lint dan build sesuai AC-18.
+17. Seluruh butir Lampiran A berstatus selesai atau diterima secara eksplisit oleh maintainer.
 16. Nilai `tag` divalidasi sebelum digunakan dalam workflow dan manifest Kubernetes.
 
 ---
@@ -1009,4 +1055,22 @@ Dokumen ini menjadi baseline teknis DevOpsGen versi **1.2.0** dengan status **Ap
 
 Perubahan pada scope MVP, kontrak CLI, kebijakan keamanan, arsitektur core, model konfigurasi, atau acceptance criteria harus dicatat sebagai revisi spesifikasi atau keputusan desain. Implementasi harus mengutamakan ketepatan output, keamanan filesystem, determinisme, dan kemudahan pengujian sebelum ekspansi fitur.
 
-**Status akhir: Approved for Implementation.**
+**Status akhir: Approved for Implementation (revisi 1.2.1 menunggu peninjauan maintainer).**
+
+---
+
+## Lampiran A. Catatan Kesesuaian Implementasi (per 17 Oktober 2026)
+
+Lampiran ini mencatat selisih antara spesifikasi dan implementasi pada branch `impl-srs-v1.2.0-completion` yang ditemukan saat revisi 1.2.1. Spesifikasi di atas tetap menjadi acuan; butir berikut adalah pekerjaan implementasi atau keputusan yang belum selesai.
+
+| ID | Selisih | Acuan | Tindak lanjut |
+|---|---|---|---|
+| A1 | Dockerfile Node.js selalu memasang dependency dengan npm dan menjalankan `pnpm run build` atau `yarn run build` sesuai package manager terdeteksi. pnpm tidak dipasang di image, sehingga build pnpm gagal; lockfile pnpm dan yarn diabaikan. Workflow juga mengasumsikan pnpm tersedia di runner. | 3.2.2, FR-05 | Dukung pnpm/yarn penuh (misalnya `corepack enable` dan perintah install/prune yang sesuai), atau batasi MVP ke npm dan tolak package manager lain secara eksplisit. |
+| A2 | `TestCmdForWorkflow` membungkus `test-cmd` Node.js menjadi `<package-manager> run <test-cmd>`, sehingga `--test-cmd "npm test"` menjadi `npm run npm test`. `build-cmd` dan `start-cmd` tidak dibungkus. | 4.1 (`test-cmd`), FR-03 | Tulis `test-cmd` apa adanya dan perbarui pengujian terkait. |
+| A3 | Detektor memilih satu lockfile menurut urutan tetap (npm, pnpm, yarn) dan tidak melaporkan ambiguitas bila ada beberapa lockfile. | 3.2.2 | Laporkan ambiguitas (exit code `5` pada mode non-interaktif). |
+| A4 | `RequiredFieldsMissing` mewajibkan `--start-cmd` untuk semua stack Node.js, padahal spesifikasi menyatakan wajib bersyarat dan template memiliki kandidat default. | 4.1 (`start-cmd`) | Putuskan: wajib selalu (ubah spesifikasi) atau bersyarat (ubah implementasi). |
+| A5 | Template Dockerfile Go dan Node.js membuat `go.mod` atau `package.json` sementara bila berkas tidak ada (pada Node.js, pengecekan berjalan sebelum `COPY` sehingga tidak berguna). | FR-05 | Hapus; biarkan build gagal dengan jelas. |
+| A6 | Validator hanya menolak pola `{{.` dan tidak mendeteksi ekspresi bocor berbentuk `${{ .Field }}` (ada spasi). | FR-13 | Gunakan pola `\{\{\s*\.` dan tambahkan pengujian regresi. |
+| A7 | `Dockerfile` dan `kubernetes/` hasil generasi ter-commit di root repositori, tidak tercakup `.gitignore`. | 6.2 | Hapus dari repositori dan tambahkan ke `.gitignore`. |
+| A8 | Integrasi validator eksternal (misalnya `kubeconform`) pada `validate` belum ada; hanya pesan `external validation skipped`. | FR-13 | Diterima untuk MVP (sudah dicatat pada FR-13); jadwalkan pascarilis. |
+| A9 | Langkah hadolint pada `ci.yml` memakai path di luar workspace (`/tmp/...`) yang tidak terlihat oleh container action, dan memakai ambang `info`. | AC-18 | Jalankan hadolint melalui stdin atau di dalam workspace, ambang `warning`. |
