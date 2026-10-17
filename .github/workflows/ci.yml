@@ -153,7 +153,7 @@ jobs:
           --tag v1 --k8s \
           --output-dir /tmp/e2e-go
           cp go.mod go.sum /tmp/e2e-go/
-          cp -r cmd /tmp/e2e-go/
+          cp -r cmd internal /tmp/e2e-go/
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
