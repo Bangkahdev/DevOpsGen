@@ -20,7 +20,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
-          go-version: '1.24'
+          go-version: '1.25'
 
       - name: Download dependencies
         run: go mod download
@@ -41,7 +41,7 @@ jobs:
       - name: actionlint
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          "$(go env GOPATH)"/bin/actionlint -color .github/workflows/
+          "$(go env GOPATH)"/bin/actionlint -color $(find .github/workflows -type f \( -name '*.yml' -o -name '*.yaml' \))
 
   test:
     name: Test
