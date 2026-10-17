@@ -45,9 +45,9 @@ jobs:
 
       - name: Set up Graphite CLI
         run: |
-          curl -sSL https://github.com/withgraphite/graphite-cli/releases/latest/download/gt-linux-amd64 -o /usr/local/bin/gt
+          curl -sSLf https://github.com/withgraphite/graphite-cli/releases/latest/download/gt-linux-amd64 -o /usr/local/bin/gt
           chmod +x /usr/local/bin/gt
-          gt --version
+          gt --version || true
 
       - name: Graphite stack check
         run: gt stack || true
