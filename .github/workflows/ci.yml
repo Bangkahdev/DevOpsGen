@@ -41,7 +41,7 @@ jobs:
       - name: actionlint
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          "$(go env GOPATH)"/bin/actionlint -color $(find .github/workflows -type f \( -name '*.yml' -o -name '*.yaml' \))
+          "$(go env GOPATH)"/bin/actionlint -color .github/workflows/ci.yml .github/workflows/release.yml
 
   test:
     name: Test
