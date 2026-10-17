@@ -155,7 +155,7 @@ jobs:
             --build-arg GO_VERSION=1.24 \
             -t devopsgen-go-test \
             -f /tmp/e2e-go/Dockerfile \
-            /tmp/e2e-go
+            .
 
       - name: Lint generated Dockerfile with hadolint
         uses: hadolint/hadolint-action@v3.1.0
