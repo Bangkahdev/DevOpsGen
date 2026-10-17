@@ -17,9 +17,8 @@ WORKDIR /src
 
 # Ensure go.mod exists so module download does not fail on an empty project.
 RUN if [ ! -f go.mod ]; then echo "module app" > go.mod && echo "go 1.24" >> go.mod; fi
-RUN go mod download
-
 COPY . .
+RUN go mod download
 
 RUN mkdir -p /out && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} {{.BuildOrDefault}}
 
