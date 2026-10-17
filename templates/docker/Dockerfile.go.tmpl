@@ -17,7 +17,6 @@ WORKDIR /src
 
 # Ensure go.mod exists so module download does not fail on an empty project.
 RUN if [ ! -f go.mod ]; then printf 'module app\ngo 1.24\n' > go.mod; fi
-COPY go.mod ./
 RUN go mod download
 
 COPY . .
