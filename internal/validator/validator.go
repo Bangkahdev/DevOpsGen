@@ -8,6 +8,7 @@ package validator
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"go.yaml.in/yaml/v4"
@@ -589,7 +590,7 @@ func (e *engine) validateWorkflow(a output.Artifact) error {
 	if !strings.Contains(s, "uses: actions/checkout") {
 		return fmt.Errorf("validator: %s missing checkout step", a.Path)
 	}
-	if strings.Contains(s, "{{.") {
+	if regexp.MustCompile(`\{\{\s*\.`).MatchString(s) {
 		return fmt.Errorf("validator: %s contains unrendered template syntax", a.Path)
 	}
 	if !strings.Contains(s, "github.sha") {

@@ -27,3 +27,5 @@ templates/local/
 
 # Generated output
 /dist/
+/Dockerfile
+/kubernetes/

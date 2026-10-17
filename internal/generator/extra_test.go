@@ -56,9 +56,9 @@ func TestTemplateData_TestCmdForWorkflow(t *testing.T) {
 	if got := td.TestCmdForWorkflow(); got != "go test ./..." {
 		t.Fatalf("Go test cmd: %q", got)
 	}
-	// Node.js: wrapped with npm run.
+	// Node.js: passed through unchanged.
 	td = templateData{Config: config.Config{Stack: config.StackNode, TestCmd: "jest"}}
-	if got := td.TestCmdForWorkflow(); got != "npm run jest" {
+	if got := td.TestCmdForWorkflow(); got != "jest" {
 		t.Fatalf("Node test cmd: %q", got)
 	}
 	// Empty: returns empty.

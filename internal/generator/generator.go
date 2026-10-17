@@ -271,14 +271,11 @@ func (t templateData) packageManager() string {
 	}
 }
 
-// TestCmdForWorkflow returns the test command formatted for the workflow.
-// Node.js script names are wrapped with the detected package manager; Go commands are used as-is.
+// TestCmdForWorkflow returns the test command as-is.
+// Both Go and Node.js test commands are passed through unchanged.
 func (t templateData) TestCmdForWorkflow() string {
 	if t.Config.TestCmd == "" {
 		return ""
-	}
-	if t.Config.Stack == config.StackNode {
-		return t.packageManager() + " run " + t.Config.TestCmd
 	}
 	return t.Config.TestCmd
 }
