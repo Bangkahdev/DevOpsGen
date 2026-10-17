@@ -328,10 +328,11 @@ func (f *RealFS) checkSymlinkParents(target string) error {
 	for cur := dir; cur != rootAbs && cur != filepath.Dir(rootAbs); cur = filepath.Dir(cur) {
 		info, err := os.Lstat(cur)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue // parent doesn't exist yet, will be created
-			}
-			return err
+			// If we can't stat the parent (doesn't exist, or a path component
+			// is a regular file -> ENOTDIR), skip the symlink check. Commit
+			// will surface the real filesystem error when it tries to create
+			// the directory or write the file.
+			continue
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("filesystem: parent directory %q is a symlink, refusing to write outside target", cur)
