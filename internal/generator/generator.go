@@ -290,4 +290,3 @@ func lastSegment(s string) string {
 	}
 	return s
 }
-
