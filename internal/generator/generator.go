@@ -220,9 +220,9 @@ func (t templateData) BuildOrDefault() string {
 	case config.AppTypeGeneric:
 		return ""
 	case config.AppTypeBinary:
-		return "go build -ldflags=\"-s -w\" -o /out/server ./cmd/devopsgen"
+		return fmt.Sprintf("go build -ldflags=\"-s -w\" -o /out/server %s", t.buildPath())
 	default:
-		return "go build -ldflags=\"-s -w\" ./cmd/devopsgen"
+		return fmt.Sprintf("go build -ldflags=\"-s -w\" -o /out/server %s", t.buildPath())
 	}
 }
 
@@ -254,9 +254,9 @@ func (t templateData) StartOrDefault() string {
 	case config.AppTypeGeneric:
 		return pm + " run start"
 	case config.AppTypeBinary:
-		return "go build -ldflags=\"-s -w\" -o /out/server ./cmd/devopsgen"
+		return "/server"
 	default:
-		return "go build -ldflags=\"-s -w\" ./cmd/devopsgen"
+		return "/server"
 	}
 }
 
