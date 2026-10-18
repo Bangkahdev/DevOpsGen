@@ -88,7 +88,7 @@ func (f *RealFS) PlanBuild(artifacts map[string][]byte) (Plan, error) {
 				return Plan{}, fmt.Errorf("filesystem: backup path %q already exists", backup)
 			}
 			p.Backup[clean] = backup
-		} else if errors.Is(statErr, os.ErrNotExist) {
+		} else if errors.Is(statErr, os.ErrNotExist) || errors.Is(statErr, syscall.ENOTDIR) {
 			p.Create = append(p.Create, clean)
 			// Track parent directories that will need creation.
 			dir := filepath.Dir(clean)
