@@ -136,16 +136,13 @@ func (f *RealFS) Commit(p Plan) error {
 	}
 	sortStrings(backupOrigins)
 
-	for _, orig := range backupOrigins {
+	for idx, orig := range backupOrigins {
 		backup := p.Backup[orig]
 		if err := os.Rename(orig, backup); err != nil {
 			rollbackErrors = append(rollbackErrors, fmt.Sprintf("backup %q: %v", orig, err))
-			// Roll back any backups already made (reverse order).
-			for i := len(backupOrigins) - 1; i >= 0; i-- {
+			// Roll back the backups already made, i.e. those before idx (reverse order).
+			for i := idx - 1; i >= 0; i-- {
 				o := backupOrigins[i]
-				if o == orig {
-					break
-				}
 				b := p.Backup[o]
 				if _, statErr := os.Lstat(b); statErr == nil {
 					if rerr := os.Rename(b, o); rerr != nil {
