@@ -1,7 +1,7 @@
 // Package detector performs read-only stack detection from project indicators.
 //
 // Detection must never modify the project or execute project scripts. It
-// reports candidates, indicators, and unresolved ambiguities.
+// reports candidates, indicators, warnings, and unresolved ambiguities.
 package detector
 
 import (
@@ -23,6 +23,7 @@ type DetectionResult struct {
 	StartCmd       string
 	Lockfile       string
 	PackageManager string
+	Warnings       []string
 	Ambiguities    []string
 }
 
@@ -69,7 +70,7 @@ func detectNode(root string) (DetectionResult, bool, error) {
 		Scripts         map[string]string `json:"scripts"`
 	}
 	if err := json.Unmarshal(b, &pkg); err != nil {
-		r.Ambiguities = append(r.Ambiguities, "package.json is not valid JSON")
+		r.Warnings = append(r.Warnings, "package.json is not valid JSON")
 		return r, true, nil
 	}
 
@@ -117,7 +118,7 @@ func detectNode(root string) (DetectionResult, bool, error) {
 		r.AppCandidates = append(r.AppCandidates, "generic")
 	}
 
-	// Lockfile / package manager.
+	// Lockfile / package manager. Absence is a warning, not ambiguity.
 	for _, f := range []string{"package-lock.json", "pnpm-lock.yaml", "yarn.lock", "npm-shrinkwrap.json"} {
 		if _, err := os.Stat(filepath.Join(root, f)); err == nil {
 			r.Lockfile = f
@@ -134,7 +135,7 @@ func detectNode(root string) (DetectionResult, bool, error) {
 		}
 	}
 	if r.Lockfile == "" {
-		r.Ambiguities = append(r.Ambiguities, "no lockfile detected")
+		r.Warnings = append(r.Warnings, "no lockfile detected; dependency installation may not be reproducible")
 	}
 	return r, true, nil
 }
@@ -147,79 +148,8 @@ func New() Detector {
 	return &engine{}
 }
 
-// detectPython checks for a Python project via pyproject.toml, requirements.txt, setup.py, Pipfile, etc.
-func detectPython(root string) (DetectionResult, bool, error) {
-	r := DetectionResult{Stack: "python"}
-	var indicators []string
-	var appCandidates []string
-
-	pythonFiles := []string{
-		"pyproject.toml", "setup.py", "requirements.txt",
-		"Pipfile", "poetry.lock", "uv.lock", "manage.py", "app.py",
-	}
-
-	for _, f := range pythonFiles {
-		if _, err := os.Stat(filepath.Join(root, f)); err == nil {
-			indicators = append(indicators, f)
-			if f == "manage.py" {
-				appCandidates = append(appCandidates, "django")
-			}
-		}
-	}
-
-	if len(indicators) == 0 {
-		return r, false, nil
-	}
-
-	r.Indicators = indicators
-
-	// Check lockfile and package manager.
-	if _, err := os.Stat(filepath.Join(root, "poetry.lock")); err == nil {
-		r.Lockfile = "poetry.lock"
-		r.PackageManager = "poetry"
-	} else if _, err := os.Stat(filepath.Join(root, "Pipfile.lock")); err == nil {
-		r.Lockfile = "Pipfile.lock"
-		r.PackageManager = "pipenv"
-	} else if _, err := os.Stat(filepath.Join(root, "uv.lock")); err == nil {
-		r.Lockfile = "uv.lock"
-		r.PackageManager = "uv"
-	} else if _, err := os.Stat(filepath.Join(root, "requirements.txt")); err == nil {
-		r.PackageManager = "pip"
-	}
-
-	// Inspect pyproject.toml and requirements.txt for framework dependencies.
-	for _, reqFile := range []string{"requirements.txt", "pyproject.toml", "setup.py"} {
-		if b, err := os.ReadFile(filepath.Join(root, reqFile)); err == nil {
-			s := strings.ToLower(string(b))
-			if strings.Contains(s, "fastapi") || strings.Contains(s, "uvicorn") {
-				appCandidates = append(appCandidates, "fastapi")
-			}
-			if strings.Contains(s, "django") {
-				appCandidates = append(appCandidates, "django")
-			}
-			if strings.Contains(s, "flask") {
-				appCandidates = append(appCandidates, "flask")
-			}
-		}
-	}
-
-	// Deduplicate candidates.
-	seen := map[string]bool{}
-	for _, c := range appCandidates {
-		if !seen[c] {
-			seen[c] = true
-			r.AppCandidates = append(r.AppCandidates, c)
-		}
-	}
-
-	if len(r.AppCandidates) == 0 {
-		r.AppCandidates = append(r.AppCandidates, "generic")
-	}
-
-	return r, true, nil
-}
-
 // Detect runs all stack detectors against root and reports the result.
+// Only Go and Node.js are in MVP scope.
 func (e *engine) Detect(root string) (DetectionResult, error) {
 	var results []DetectionResult
 	goRes, goOk, err := detectGo(root)
@@ -235,13 +165,6 @@ func (e *engine) Detect(root string) (DetectionResult, error) {
 	}
 	if nodeOk {
 		results = append(results, nodeRes)
-	}
-	pyRes, pyOk, err := detectPython(root)
-	if err != nil {
-		return DetectionResult{}, err
-	}
-	if pyOk {
-		results = append(results, pyRes)
 	}
 	if len(results) == 0 {
 		return DetectionResult{}, errors.New("detector: no supported stack indicators found")
@@ -266,7 +189,7 @@ func (r DetectionResult) IsAmbiguous() bool {
 
 // HasStart reports whether a startup command was detected.
 func (r DetectionResult) HasStart() bool {
-	return (r.Stack == "nodejs" || r.Stack == "python") && r.StartCmd != ""
+	return (r.Stack == "nodejs") && r.StartCmd != ""
 }
 
 // HasBuild reports whether a build command was detected.

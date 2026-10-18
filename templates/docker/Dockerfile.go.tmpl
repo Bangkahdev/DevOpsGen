@@ -6,22 +6,24 @@
 #   docker build --build-arg GO_VERSION=1.25 .
 # GOTOOLCHAIN=auto lets Go fetch a newer toolchain if go.mod still requires
 # one (needs network access during the build).
+#
+# The build step must write the binary to /out/server (the runtime stage copies it
+# from there). A custom --build-cmd for Go must keep that output path.
 
 ARG GO_VERSION=1.24
 FROM golang:${GO_VERSION}-alpine AS builder
 
-ARG TARGETARCH
+ARG TARGETARCH=amd64
 ENV GOTOOLCHAIN=auto
 
 WORKDIR /src
 
-COPY go.mod go.sum* ./
+# Ensure go.mod exists so module download does not fail on an empty project.
+RUN if [ ! -f go.mod ]; then echo "module app" > go.mod && echo "go 1.24" >> go.mod; fi
+COPY . .
 RUN go mod download
 
-COPY . .
-
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
-    go build -ldflags="-s -w" -o /out/server .
+RUN mkdir -p /out && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} {{.BuildOrDefault}}
 
 FROM scratch
 

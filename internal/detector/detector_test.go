@@ -94,7 +94,7 @@ func TestDetect_NoIndicators(t *testing.T) {
 	}
 }
 
-func TestDetect_NodeNoLockfile(t *testing.T) {
+func TestDetect_NodeNoLockfileIsWarning(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, "package.json", `{"scripts":{"start":"node s.js"}}`)
 	r, err := New().Detect(dir)
@@ -104,8 +104,18 @@ func TestDetect_NodeNoLockfile(t *testing.T) {
 	if r.Lockfile != "" {
 		t.Fatalf("expected no lockfile, got %q", r.Lockfile)
 	}
-	if !contains(r.Ambiguities, "no lockfile detected") {
-		t.Fatalf("ambiguities should mention lockfile: %v", r.Ambiguities)
+	// No lockfile is a warning, not ambiguity.
+	hasLockfileWarning := false
+	for _, w := range r.Warnings {
+		if strings.Contains(w, "no lockfile detected") {
+			hasLockfileWarning = true
+		}
+	}
+	if !hasLockfileWarning {
+		t.Fatalf("expected no-lockfile warning: %v", r.Warnings)
+	}
+	if r.IsAmbiguous() {
+		t.Fatalf("no lockfile should not be ambiguous: %v", r.Ambiguities)
 	}
 }
 

@@ -1,0 +1,26 @@
+# Graphite configuration for DevOpsGen
+# https://graphite.dev
+
+github_repo: Bangkahdev/DevOpsGen
+github_org: Bangkahdev
+stacking:
+  default_merge_strategy: rebase
+  delete_merged_branches: true
+  auto_rebase: true
+  auto_merge_on_approval: false
+  diff_with_stack_base: true
+
+pull_request:
+  draft_on_create: false
+  add_reviewers: true
+  add_projects: false
+
+triggers:
+  on_merge:
+    - rebase_dependents
+  on_merge_conflict:
+    - notify_author
+
+github:
+  repo: Bangkahdev/DevOpsGen
+  owner: Bangkahdev

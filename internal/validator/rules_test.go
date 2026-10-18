@@ -51,32 +51,45 @@ jobs:
 	}
 }
 
-func TestValidate_DockerfilePython(t *testing.T) {
+func TestValidate_YAMLInvalidSyntax(t *testing.T) {
 	arts := []output.Artifact{
-		{
-			Path: "Dockerfile",
-			Content: []byte(`FROM python:3.12-alpine AS builder
-WORKDIR /app
-ENV VIRTUAL_ENV=/opt/venv
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN python -m venv $VIRTUAL_ENV
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-FROM python:3.12-alpine AS runtime
-WORKDIR /app
-ENV VIRTUAL_ENV=/opt/venv
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-COPY --from=builder /opt/venv /opt/venv
-COPY --from=builder /app /app
-EXPOSE 8000
-USER 1000:1000
-CMD ["python", "app.py"]
-`),
-		},
+		{Path: "kubernetes/deployment.yaml", Content: []byte("apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: app\nspec:\n  [invalid yaml")},
+	}
+	r, err := New().Validate(arts)
+	if err == nil || r != ResultInvalid {
+		t.Fatalf("invalid YAML should be rejected: %v %v", r, err)
+	}
+}
+
+func TestValidate_DeploymentMultiDocument(t *testing.T) {
+	// Only first document is validated for a deployment.yaml path.
+	arts := []output.Artifact{
+		{Path: "kubernetes/deployment.yaml", Content: []byte(`
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+spec:
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/x/app:latest
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+`)},
 	}
 	r, err := New().Validate(arts)
 	if err != nil || r != ResultValid {
-		t.Fatalf("python Dockerfile should be valid: %v %v", r, err)
+		t.Fatalf("valid multi-doc: %v %v", r, err)
 	}
 }
