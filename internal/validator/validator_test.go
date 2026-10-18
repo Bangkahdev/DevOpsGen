@@ -73,6 +73,60 @@ func TestValidate_DeploymentMissingFields(t *testing.T) {
 	}
 }
 
+func TestValidate_DeploymentSelectorMismatch(t *testing.T) {
+	arts := []output.Artifact{
+		{Path: "kubernetes/deployment.yaml", Content: []byte(`
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+spec:
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: other
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/x/app:latest
+`)},
+	}
+	r, err := New().Validate(arts)
+	if err == nil || r != ResultInvalid {
+		t.Fatalf("selector mismatch should be invalid: %v %v", r, err)
+	}
+}
+
+func TestValidate_DeploymentEmptyImage(t *testing.T) {
+	arts := []output.Artifact{
+		{Path: "kubernetes/deployment.yaml", Content: []byte(`
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+spec:
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+        - name: app
+          image: ""
+`)},
+	}
+	r, err := New().Validate(arts)
+	if err == nil || r != ResultInvalid {
+		t.Fatalf("empty image should be invalid: %v %v", r, err)
+	}
+}
+
 func TestValidate_Workflow(t *testing.T) {
 	arts := []output.Artifact{
 		{Path: ".github/workflows/ci.yml", Content: []byte(`
@@ -112,7 +166,18 @@ func TestValidate_Empty(t *testing.T) {
 
 func TestValidate_Service(t *testing.T) {
 	arts := []output.Artifact{
-		{Path: "kubernetes/service.yaml", Content: []byte("kind: Service\nspec:\n  ports:\n    - targetPort: 8080\n")},
+		{Path: "kubernetes/service.yaml", Content: []byte(`
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+spec:
+  selector:
+    app: app
+  ports:
+    - port: 8080
+      targetPort: 8080
+`)},
 	}
 	r, err := New().Validate(arts)
 	if err != nil || r != ResultValid {
@@ -120,9 +185,36 @@ func TestValidate_Service(t *testing.T) {
 	}
 }
 
+func TestValidate_ServiceMissingSelector(t *testing.T) {
+	arts := []output.Artifact{
+		{Path: "kubernetes/service.yaml", Content: []byte("apiVersion: v1\nkind: Service\nmetadata:\n  name: app\nspec:\n  ports:\n    - port: 8080\n")},
+	}
+	r, err := New().Validate(arts)
+	if err == nil || r != ResultInvalid {
+		t.Fatalf("missing selector should be invalid: %v %v", r, err)
+	}
+}
+
 func TestValidate_Ingress(t *testing.T) {
 	arts := []output.Artifact{
-		{Path: "kubernetes/ingress.yaml", Content: []byte("kind: Ingress\napiVersion: networking.k8s.io/v1\nspec:\n  rules:\n    - http:\n        paths:\n          - pathType: Prefix\n")},
+		{Path: "kubernetes/ingress.yaml", Content: []byte(`
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app
+spec:
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 8080
+`)},
 	}
 	r, err := New().Validate(arts)
 	if err != nil || r != ResultValid {

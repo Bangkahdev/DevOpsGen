@@ -8,9 +8,8 @@ package config
 type StackType string
 
 const (
-	StackGo     StackType = "go"
-	StackNode   StackType = "nodejs"
-	StackPython StackType = "python"
+	StackGo   StackType = "go"
+	StackNode StackType = "nodejs"
 )
 
 // AppType identifies the application shape within a stack.
@@ -22,10 +21,7 @@ const (
 	AppTypeNextJS  AppType = "nextjs"  // Node.js
 	AppTypeVite    AppType = "vite"    // Node.js
 	AppTypeNestJS  AppType = "nestjs"  // Node.js
-	AppTypeGeneric AppType = "generic" // Node.js / Python
-	AppTypeFastAPI AppType = "fastapi" // Python
-	AppTypeDjango  AppType = "django"  // Python
-	AppTypeFlask   AppType = "flask"   // Python
+	AppTypeGeneric AppType = "generic" // Node.js
 )
 
 // CIProvider identifies a supported CI/CD provider.
@@ -62,20 +58,29 @@ type GenerationOptions struct {
 // Field validation happens before rendering; required fields are enforced
 // per the SRS 4.1 parameter matrix.
 type Config struct {
-	Stack      StackType
-	AppType    AppType
-	CI         CIProvider
-	Registry   Registry
-	Image      string // namespace/repository, no registry host, no tag
-	Port       int
-	BuildCmd   string
-	TestCmd    string
-	StartCmd   string
-	Tag        string // additional alias; default "latest"
+	Stack    StackType
+	AppType  AppType
+	CI       CIProvider
+	Registry Registry
+	Image    string // namespace/repository, no registry host, no tag
+	Port     int
+	BuildCmd string
+	TestCmd  string
+	StartCmd string
+	Tag      string // additional alias; default "latest"
+	// BuildPath is the Go package path passed to `go build` in the Dockerfile.
+	// Defaults to "." (project root). Set to "./cmd/..." when main lives in a
+	// subdirectory.
+	BuildPath  string
 	K8s        K8sOptions
 	OutputDir  string
 	Generation GenerationOptions
+	// PackageManager is the detected or configured package manager (npm, pnpm, yarn).
+	PackageManager string
 }
 
 // DefaultTag is the default mutable alias published alongside the commit SHA.
 const DefaultTag = "latest"
+
+// MaxTagLen is the maximum allowed length for a tag value.
+const MaxTagLen = 128

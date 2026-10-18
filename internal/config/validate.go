@@ -14,7 +14,7 @@ import (
 
 var (
 	errEmptyStack        = errors.New("stack is required")
-	errInvalidStack      = errors.New("stack must be 'go', 'nodejs', or 'python'")
+	errInvalidStack      = errors.New("stack must be 'go' or 'nodejs'")
 	errInvalidCI         = errors.New("ci must be 'github-actions'")
 	errInvalidRegistry   = errors.New("registry must be 'dockerhub' or 'ghcr'")
 	errInvalidImage      = errors.New("image must be 'namespace/repository' without host or tag")
@@ -24,23 +24,36 @@ var (
 	errInvalidHostname   = errors.New("ingress-host must be a valid RFC 1123 hostname")
 	errInvalidHealthPath = errors.New("health-path must be a valid HTTP path")
 	errInvalidCommand    = errors.New("command must be a single line without control characters")
+	errInvalidTag        = errors.New("tag is invalid: max 128 chars, no whitespace, newline, or shell/YAML metacharacters")
+	errInvalidBuildPath  = errors.New("build-path must be a safe relative path without traversal")
 )
 
 // RFC 1123 hostname: lowercase labels of 1-63 chars, alnum and '-'.
-// Length is enforced separately in validateHostname.
 var hostnameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$`)
 
 // imageRe enforces "namespace/repository" with no host and no tag.
 var imageRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9._-]{0,61}[a-z0-9])?/[a-z0-9]([a-z0-9._-]{0,61}[a-z0-9])?$`)
 
+// ImageRe is the exported image validation regex.
+var ImageRe = imageRe
+
 // healthPathRe enforces a rooted HTTP path.
 var healthPathRe = regexp.MustCompile(`^/([a-zA-Z0-9._~/-]+)?$`)
 
-// validAppTypes maps each stack to its allowed app types.
+// buildPathRe enforces a safe relative filesystem path: no leading slash,
+// no traversal segments, only safe characters.
+var buildPathRe = regexp.MustCompile(`^([A-Za-z0-9._~-]+([/\\][A-Za-z0-9._~-]+)*)?$`)
+
+// HealthPathRe is the exported health path validation regex.
+var HealthPathRe = healthPathRe
+
+// tagRe enforces a safe Docker tag: alphanumeric, underscore, dot, hyphen only.
+var tagRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
+
+// validAppTypes maps each stack to its allowed app types (MVP: go and nodejs only).
 var validAppTypes = map[StackType][]AppType{
-	StackGo:     {AppTypeBinary},
-	StackNode:   {AppTypeExpress, AppTypeNextJS, AppTypeVite, AppTypeNestJS, AppTypeGeneric},
-	StackPython: {AppTypeFastAPI, AppTypeDjango, AppTypeFlask, AppTypeGeneric},
+	StackGo:   {AppTypeBinary},
+	StackNode: {AppTypeExpress, AppTypeNextJS, AppTypeVite, AppTypeNestJS, AppTypeGeneric},
 }
 
 // ValidateConfig checks the full configuration contract.
@@ -48,7 +61,7 @@ func ValidateConfig(cfg Config) error {
 	if cfg.Stack == "" {
 		return errEmptyStack
 	}
-	if cfg.Stack != StackGo && cfg.Stack != StackNode && cfg.Stack != StackPython {
+	if cfg.Stack != StackGo && cfg.Stack != StackNode {
 		return errInvalidStack
 	}
 	if cfg.CI != CIGitHubActions {
@@ -78,6 +91,9 @@ func ValidateConfig(cfg Config) error {
 	if err := validateCommand(cfg.StartCmd); err != nil {
 		return fmt.Errorf("start-cmd: %w", err)
 	}
+	if err := ValidateTag(cfg.Tag); err != nil {
+		return fmt.Errorf("tag: %w", err)
+	}
 	if cfg.K8s.Ingress && cfg.K8s.IngressHost == "" {
 		return errInvalidHostname
 	}
@@ -88,6 +104,62 @@ func ValidateConfig(cfg Config) error {
 	}
 	if cfg.K8s.HealthPath != "" && !healthPathRe.MatchString(cfg.K8s.HealthPath) {
 		return errInvalidHealthPath
+	}
+	if err := validateBuildPath(cfg.BuildPath); err != nil {
+		return fmt.Errorf("build-path: %w", err)
+	}
+	return nil
+}
+
+// validateBuildPath ensures BuildPath is a safe relative path (default ".").
+func validateBuildPath(path string) error {
+	if path == "" {
+		return nil
+	}
+	clean := filepath.Clean(path)
+	if clean == "." {
+		return nil
+	}
+	if !buildPathRe.MatchString(path) {
+		return errInvalidBuildPath
+	}
+	// Reject traversal segments.
+	for _, seg := range strings.Split(path, string(filepath.Separator)) {
+		if seg == ".." {
+			return errInvalidBuildPath
+		}
+	}
+	return nil
+}
+
+// ValidateBuildPath is the exported form of validateBuildPath.
+func ValidateBuildPath(path string) error {
+	return validateBuildPath(path)
+}
+
+// ValidateTag checks that a tag value is safe for use in shell commands and
+// YAML manifests. Empty tag is allowed (defaults to "latest").
+func ValidateTag(tag string) error {
+	if tag == "" {
+		return nil
+	}
+	if len(tag) > MaxTagLen {
+		return errInvalidTag
+	}
+	if strings.ContainsAny(tag, "\x00\r\n\t ") {
+		return errInvalidTag
+	}
+	if !tagRe.MatchString(tag) {
+		return errInvalidTag
+	}
+	// Reject shell metacharacters and YAML special characters that could
+	// alter workflow commands or manifest structure.
+	for _, r := range tag {
+		switch r {
+		case ';', '&', '|', '`', '$', '(', ')', '{', '}', '[', ']',
+			'<', '>', '\\', '!', '#', '%', '@', ':':
+			return errInvalidTag
+		}
 	}
 	return nil
 }
@@ -141,6 +213,11 @@ func validAppTypeForStack(stack StackType, appType AppType) bool {
 	return false
 }
 
+// ValidAppTypeForStack is the exported form of validAppTypeForStack.
+func ValidAppTypeForStack(stack StackType, appType AppType) bool {
+	return validAppTypeForStack(stack, appType)
+}
+
 // validateCommand enforces single-line, control-character-free commands.
 func validateCommand(cmd string) error {
 	cmd = strings.TrimSpace(cmd)
@@ -157,6 +234,16 @@ func validateCommand(cmd string) error {
 		}
 	}
 	return nil
+}
+
+// ValidateCommand is the exported form of validateCommand.
+func ValidateCommand(cmd string) error {
+	return validateCommand(cmd)
+}
+
+// ValidateHostname is the exported form of validateHostname.
+func ValidateHostname(host string) error {
+	return validateHostname(host)
 }
 
 // ImageRef returns the fully-qualified image reference for the registry.
@@ -176,4 +263,23 @@ func (cfg Config) TagList() []string {
 		alias = DefaultTag
 	}
 	return []string{alias, "${{ github.sha }}"}
+}
+
+// RequiredFieldsMissing reports which required fields are still empty.
+// Used by the resolver to give actionable headless errors.
+func RequiredFieldsMissing(cfg Config) []string {
+	var missing []string
+	if cfg.Stack == "" {
+		missing = append(missing, "--stack")
+	}
+	if cfg.Image == "" {
+		missing = append(missing, "--image")
+	}
+	if cfg.Port == 0 {
+		missing = append(missing, "--port")
+	}
+	if cfg.Stack == StackNode && cfg.StartCmd == "" {
+		missing = append(missing, "--start-cmd")
+	}
+	return missing
 }

@@ -38,28 +38,20 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+        run: |
+          if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; \
+          elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
+          elif [ -f package-lock.json ]; then npm ci; \
+          else npm install; fi
 [[- end]]
 
-[[if eq .Stack "python"]]
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest
-[[end]]
-
-[[if .TestCmd]]
+[[- if .TestCmd]]
       - name: Test
-        run: [[.TestCmd]]
-[[else]]
+        run: [[.TestCmdForWorkflow]]
+[[- else]]
       - name: Test stage skipped
         run: echo "Test stage is not configured for this project. No test command was provided, so tests are intentionally not run."
-[[end]]
+[[- end]]
 
       - name: Build image
         run: |
