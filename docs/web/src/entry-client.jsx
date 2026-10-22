@@ -11,7 +11,7 @@ const rel = route && route.path === '' ? '' : '../';
 const page = route ?? ROUTES[0];
 
 createRoot(document.getElementById('root')).render(
-  <Layout rel={rel}>
+  <Layout rel={rel} activePath={route ? route.path : ''}>
     <page.component rel={rel} />
   </Layout>,
 );
