@@ -135,9 +135,7 @@ body {
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);
   gap: clamp(1.5rem, 3vw, 2.5rem);
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1.5rem clamp(1rem, 3vw, 2rem);
+  padding: 1.5rem clamp(1rem, 2vw, 2rem);
   align-items: start;
 }
 
@@ -458,9 +456,7 @@ li::marker { color: var(--ui-accent); }
 
 /* ---------- footer ---------- */
 .footer {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1.5rem clamp(1rem, 3vw, 2rem) 2.5rem;
+  padding: 1.5rem clamp(1rem, 2vw, 2rem) 2.5rem;
   color: var(--ui-muted);
   font-size: 0.9rem;
 }
