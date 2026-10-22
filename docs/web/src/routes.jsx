@@ -6,7 +6,7 @@ import Detect from './pages/Detect.jsx';
 import Validate from './pages/Validate.jsx';
 import ExitCodes from './pages/ExitCodes.jsx';
 
-export const SITE_URL = 'https://bangkahdev.github.io/DevOpsGen/';
+export const SITE_URL = 'https://devopsgen.bangkah.tech/';
 export const SITE_NAME = 'DevOpsGen';
 
 export const ROUTES = [

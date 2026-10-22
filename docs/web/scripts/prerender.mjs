@@ -9,7 +9,7 @@ const { ROUTES, SITE_URL, renderDocument } = await import(
   pathToFileURL(path.join(root, '.ssr', 'entry-server.js')).href
 );
 
-const outDir = path.join(root, 'dist');
+const outDir = path.resolve(root, process.env.DG_OUT_DIR || 'dist');
 
 for (const route of ROUTES) {
   const html = renderDocument(route);
