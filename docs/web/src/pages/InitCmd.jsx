@@ -120,40 +120,36 @@ export default function InitCmd({ rel }) {
         </table>
       </div>
 
-      <h2>Success &amp; conflicts</h2>
+      <h2>Success &amp; conflict behaviour</h2>
       <p>
         A clean run writes every template and exits with{' '}
         <Badge tone="ok">0</Badge>. A second run over an existing project stops before touching
-        anything and exits with <Badge tone="warn">3</Badge> until you add <code>--force</code>:
+        anything and exits with <Badge tone="warn">3</Badge> until you add <code>--force</code>; a
+        detailed walkthrough of that re-run path is on the{' '}
+        <a href={`${rel}exit-codes/`}>exit codes page</a>.
       </p>
-      <div className="screen-strip">
-        <Shot
-          rel={rel}
-          name="init-success.png"
-          alt="devopsgen init success output with exit code 0"
-          caption="First run: five files created, exit code 0."
-        />
-        <Shot
-          rel={rel}
-          name="init-conflict.png"
-          alt="devopsgen init conflict error refusing to overwrite files with exit code 3"
-          caption="Re-run without --force: exit code 3, zero files touched."
-        />
-      </div>
+      <Shot
+        rel={rel}
+        name="init-success.png"
+        alt="devopsgen init success output with exit code 0"
+        caption="First run: five files created, exit code 0."
+        feature="shot-feature"
+      />
 
       <h2>Preview plans with --dry-run</h2>
       <p>
-        <code>--dry-run</code> prints the byte-plan: which files would be created, which would be
-        replaced, and which are in conflict. With a conflict present it exits{' '}
-        <Badge tone="warn">3</Badge>; combined with <code>--force</code> a fully green plan exits{' '}
-        <Badge tone="ok">0</Badge> without writing anything:
+        <code>--dry-run</code> prints the byte-plan and writes nothing. On a fresh project it lists
+        pure <code>create</code> rows and exits{' '}
+        <Badge tone="ok">0</Badge>; combined with <code>--force</code> over an existing project it
+        lists the exact files that would be <code>replace</code>d — still{' '}
+        <Badge tone="ok">0</Badge>:
       </p>
       <div className="screen-strip">
         <Shot
           rel={rel}
           name="dry-run.png"
-          alt="devopsgen dry-run plan output showing replace and conflict entries with exit code 3"
-          caption="--dry-run over an existing project: conflict entries, exit code 3."
+          alt="devopsgen dry-run plan output showing five create entries with exit code 0"
+          caption="--dry-run on a fresh project: pure create plan, exit code 0."
         />
         <Shot
           rel={rel}
@@ -166,16 +162,11 @@ export default function InitCmd({ rel }) {
       <h2>Config validation</h2>
       <p>
         Invalid configuration fails fast with <Badge tone="err">2</Badge> before any file is
-        planned — e.g. an image that must be <code>namespace/repository</code> without host or
-        tag, a port outside 1–65535, or an Ingress without a host:
+        planned and never writes files — e.g. an image that must be{' '}
+        <code>namespace/repository</code> without host or tag, a port outside 1–65535, or an
+        Ingress without a host. The full code table lives on the{' '}
+        <a href={`${rel}exit-codes/`}>exit codes page</a>.
       </p>
-      <Shot
-        rel={rel}
-        name="invalid-config.png"
-        alt="devopsgen init failing config validation on an invalid image with exit code 2"
-        caption="Config errors exit with code 2 and never write files."
-        feature="shot-feature"
-      />
       <div className="callout callout-ok">
         Overwrites performed with <code>--force</code> keep the previous content as{' '}
         <code>&lt;file&gt;.devopsgen.bak</code> backups, and any failure mid-run triggers a

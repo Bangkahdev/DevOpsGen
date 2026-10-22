@@ -88,15 +88,15 @@ exit code: 0`}</Code>
         />
         <Shot
           rel={rel}
-          name="init-conflict.png"
-          alt="Terminal showing DevOpsGen refusing to overwrite five files and exiting with code 3"
-          caption="init on a second run refuses to overwrite files — exit code 3 without --force."
+          name="dry-run.png"
+          alt="Terminal showing a DevOpsGen dry-run plan listing five create entries with exit code 0"
+          caption="--dry-run on a fresh project prints the pure create plan and exits 0."
         />
         <Shot
           rel={rel}
-          name="dry-run.png"
-          alt="Terminal showing a DevOpsGen dry-run plan listing replace and conflict entries before exiting with code 3"
-          caption="--dry-run prints the exact write plan, unresolved conflicts included."
+          name="dry-run-force.png"
+          alt="Terminal showing a DevOpsGen dry-run force plan where every file would be replaced, exit code 0"
+          caption="--dry-run --force previews the full replace plan — still nothing written."
         />
       </div>
 

@@ -71,6 +71,6 @@ export const ROUTES = [
     description:
       'Every devopsgen command exits with a documented status code: 0 success, 1 general error, 2 invalid configuration, 3 file conflicts, 4 validation failure, 5 ambiguous detection.',
     keywords: 'devopsgen exit codes, ci integration, pipeline status',
-    ogImage: 'img/invalid-config.png',
+    ogImage: 'img/validate.png',
   },
 ];

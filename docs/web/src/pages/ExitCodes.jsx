@@ -72,20 +72,13 @@ export default function ExitCodes({ rel }) {
       </div>
 
       <h2>In practice</h2>
-      <div className="screen-strip">
-        <Shot
-          rel={rel}
-          name="invalid-config.png"
-          alt="devopsgen exiting with code 2 after failing image validation"
-          caption="Exit 2 — config rejected before planning."
-        />
-        <Shot
-          rel={rel}
-          name="init-conflict.png"
-          alt="devopsgen exiting with code 3 on existing files"
-          caption="Exit 3 — conflict, nothing written."
-        />
-      </div>
+      <Shot
+        rel={rel}
+        name="validate.png"
+        alt="devopsgen validate reporting internal validation passed with exit code 0"
+        caption="Exit 0 — internal validation passed."
+        feature="shot-feature"
+      />
 
       <Code label="shell script branching">{`devopsgen init --stack go --registry ghcr --image you/myapp --port 8080
 case $? in
