@@ -4,6 +4,10 @@ Developer-oriented DevOps scaffolding tool. DevOpsGen generates deterministic
 Dockerfiles, GitHub Actions workflows, and Kubernetes manifests from a small,
 explicit configuration.
 
+> Documentation: **[React documentation site](docs/web/dist/index.html)** —
+> screenshots of every command, the interactive wizard, flags reference and
+> exit codes. Build it with `npm run build` inside `docs/web`.
+
 ## Features
 
 - Interactive TUI wizard and non-interactive headless modes.
