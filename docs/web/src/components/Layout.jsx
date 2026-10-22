@@ -13,7 +13,7 @@ export default function Layout({ rel, activePath, children }) {
       <a className="skip" href="#main">skip to content</a>
       <header className="topbar">
         <a className="brand" href={rel || './'}>
-          <span className="brand-mark">DG</span>
+          <img className="brand-mark" src={`${rel}logo.svg`} width="36" height="36" alt="" />
           <span className="brand-name">DevOpsGen</span>
           <span className="brand-sub">DOCS</span>
         </a>

@@ -17,7 +17,7 @@ export const ROUTES = [
     description:
       'DevOpsGen generates production-ready Dockerfiles, GitHub Actions pipelines and Kubernetes manifests for Go and Node.js projects, with safe dry-run plans, automatic backups and config validation.',
     keywords: 'DevOpsGen, dockerfile generator, github actions generator, kubernetes manifests, go, nodejs, scaffolding, ci cd',
-    ogImage: 'img/init-success.png',
+    ogImage: 'img/og.png',
   },
   {
     path: 'getting-started',
