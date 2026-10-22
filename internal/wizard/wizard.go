@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"devopsgen.dev/devopsgen/internal/config"
@@ -187,12 +188,15 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.input.Value() != "" {
-			var port int
-			fmt.Sscanf(m.input.Value(), "%d", &port)
+			port, _ := strconv.Atoi(strings.TrimSpace(m.input.Value()))
 			m.cfg.Port = port
 		}
+		m.err = nil
 		m.step = StepRegistry
 		m.input.Placeholder = "dockerhub or ghcr"
+		// Reset the character limit: the port step caps input at 5 chars,
+		// but registry names ("dockerhub") and later steps need full length.
+		m.input.CharLimit = 0
 		m.input.SetValue(string(m.cfg.Registry))
 	case StepRegistry:
 		reg := config.Registry(m.input.Value())
@@ -200,14 +204,12 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 			m.err = fmt.Errorf("registry must be 'dockerhub' or 'ghcr'")
 			return m, nil
 		}
+		m.err = nil
 		m.cfg.Registry = reg
 		m.step = StepImage
 		m.input.Placeholder = "namespace/repository"
 		m.input.SetValue("")
 	case StepImage:
-		if err := config.ValidateTag(""); err != nil {
-			// Should not happen
-		}
 		if m.input.Value() != "" {
 			if !config.ImageRe.MatchString(m.input.Value()) {
 				m.err = fmt.Errorf("image must be 'namespace/repository'")
@@ -215,6 +217,7 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 			}
 			m.cfg.Image = m.input.Value()
 		}
+		m.err = nil
 		m.step = StepK8s
 		m.input.Placeholder = "e.g. /health (optional)"
 		m.input.SetValue(m.cfg.K8s.HealthPath)
@@ -222,6 +225,7 @@ func (m Model) handleEnter() (tea.Model, tea.Cmd) {
 		if m.input.Value() != "" {
 			m.cfg.K8s.HealthPath = m.input.Value()
 		}
+		m.err = nil
 		m.step = StepSummary
 	case StepSummary:
 		// Validate final config before returning.
@@ -238,8 +242,8 @@ func (m Model) validatePort(s string) error {
 	if s == "" {
 		return nil // port will be prompted again or required later
 	}
-	var port int
-	if _, err := fmt.Sscanf(s, "%d", &port); err != nil {
+	port, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
 		return fmt.Errorf("port must be a number between 1 and 65535")
 	}
 	if port < 1 || port > 65535 {

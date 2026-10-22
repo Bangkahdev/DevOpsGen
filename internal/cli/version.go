@@ -28,7 +28,7 @@ template version.
 
 On the MVP the template version tracks the binary version. Development
 builds may report "dev" when a release version is unavailable.`,
-		Args: cobra.NoArgs,
+		Args: classifyArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(cmd.OutOrStdout(), "devopsgen %s (commit %s, built %s)\n", version, commit, date)
 			fmt.Fprintf(cmd.OutOrStdout(), "template version: %s\n", templates.Version)
