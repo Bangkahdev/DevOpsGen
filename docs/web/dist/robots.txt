@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://bangkahdev.github.io/DevOpsGen/sitemap.xml
+Sitemap: https://devopsgen.bangkah.tech/sitemap.xml

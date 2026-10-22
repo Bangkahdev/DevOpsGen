@@ -1,4 +1,4 @@
-# Build artifacts (root only — do not ignore the cmd/devopsgen package)
+﻿# Build artifacts (root only â€” do not ignore the cmd/devopsgen package)
 /devopsgen
 /devopsgen.exe
 *.exe
@@ -30,3 +30,5 @@ templates/local/
 /dist/
 /Dockerfile
 /kubernetes/
+# cloudflare cli state
+.cloudflare/

@@ -1,3 +1,13 @@
-node_modules/
+﻿node_modules/
 .ssr/
 .DS_Store
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
+
+# cloudflare build output
+.cloudflare/

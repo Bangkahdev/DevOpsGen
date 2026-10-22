@@ -6,15 +6,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && vite build --ssr src/entry-server.jsx --outDir .ssr && node scripts/prerender.mjs",
-    "preview": "vite preview"
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "cf deploy"
   },
   "dependencies": {
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.64.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "cf": "^1.0.0-beta.20",
     "vite": "^8.3.5"
   }
 }
