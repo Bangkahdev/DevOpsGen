@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"devopsgen.dev/devopsgen/internal/config"
 )
@@ -35,6 +36,27 @@ type InitFlags struct {
 	OutputDir   string
 	Force       bool
 	DryRun      bool
+
+	// PackageManager is never provided via flags (SRS 4.1); it is set from
+	// detection or the wizard and honored by the generator.
+	PackageManager string
+
+	// Changed records which flags were explicitly set on the command line,
+	// so defaults and detector/wizard-provided values do not overwrite
+	// explicit user input. Nil is treated as "nothing was changed"
+	// (programmatic use, e.g. tests).
+	Changed map[string]bool
+}
+
+// changed reports whether the named flag was explicitly set. Safe on a nil map.
+func (f *InitFlags) changed(name string) bool { return f.Changed[name] }
+
+// setChanged populates the changed map from the parsed cobra flag set.
+func (f *InitFlags) setChanged(fset *pflag.FlagSet) {
+	f.Changed = map[string]bool{}
+	for _, flag := range []string{"stack", "app-type", "ci", "registry", "image", "port", "build-cmd", "build-path", "test-cmd", "start-cmd", "tag", "k8s", "ingress", "ingress-host", "health-path", "output-dir", "force", "dry-run"} {
+		f.Changed[flag] = fset.Changed(flag)
+	}
 }
 
 // AddInitFlags registers all init flags on the given command.
@@ -80,6 +102,7 @@ func (f *InitFlags) ToConfig() (config.Config, error) {
 		OutputDir:  f.OutputDir,
 		Generation: config.GenerationOptions{Force: f.Force, DryRun: f.DryRun},
 	}
+	cfg.PackageManager = f.PackageManager
 	cfg.K8s = config.K8sOptions{
 		Enabled:     f.K8s,
 		Ingress:     f.Ingress,
@@ -169,5 +192,6 @@ func readInitFlags(cmd *cobra.Command) (*InitFlags, error) {
 	flags.OutputDir, _ = f.GetString("output-dir")
 	flags.Force, _ = f.GetBool("force")
 	flags.DryRun, _ = f.GetBool("dry-run")
+	flags.setChanged(f)
 	return flags, nil
 }

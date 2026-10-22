@@ -36,6 +36,11 @@ It supports interactive (TUI) and non-interactive (headless) modes.
 All core operations can be executed without the TUI.`,
 		SilenceUsage: true,
 	}
+	// Flag parse failures (unknown flag, invalid value) are invalid input:
+	// map to exit code 2 per FR-16 instead of the default general error.
+	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		return newExitError(2, err)
+	})
 
 	root.AddCommand(
 		newInitCommand(),
@@ -46,6 +51,15 @@ All core operations can be executed without the TUI.`,
 	)
 
 	return root
+}
+
+// classifyArgs wraps cobra.NoArgs so argument-count violations become
+// exit-code-2 errors.
+func classifyArgs(cmd *cobra.Command, args []string) error {
+	if err := cobra.NoArgs(cmd, args); err != nil {
+		return newExitError(2, err)
+	}
+	return nil
 }
 
 // mapCommandError translates command-level failures into exit codes.
@@ -74,6 +88,11 @@ func mapCommandError(err error) int {
 	}
 	if errors.Is(err, errAmbiguousStack) {
 		return 5
+	}
+	// Cobra emits plain errors for unknown commands; treat them as invalid
+	// input rather than a general failure (FR-16 code 2).
+	if strings.HasPrefix(err.Error(), "unknown command ") {
+		return 2
 	}
 	return 1
 }
@@ -105,7 +124,7 @@ func newInitCommand() *cobra.Command {
 In an interactive terminal with no complete configuration, the TUI wizard
 is launched. When all required parameters are supplied via flags, the
 process runs headless and never waits for stdin.`,
-		Args: cobra.NoArgs,
+		Args: classifyArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			flags, err := readInitFlags(cmd)
 			if err != nil {
@@ -118,26 +137,39 @@ process runs headless and never waits for stdin.`,
 				if werr != nil {
 					return newExitError(2, werr)
 				}
-				flags.Stack = string(wcfg.Stack)
-				flags.AppType = string(wcfg.AppType)
-				flags.BuildCmd = wcfg.BuildCmd
-				flags.TestCmd = wcfg.TestCmd
-				flags.StartCmd = wcfg.StartCmd
-				if wcfg.Image != "" {
+				// Wizard fills MISSING values only: never overwrite a flag
+				// the user set explicitly.
+				if !cmd.Flags().Changed("stack") && flags.Stack == "" && wcfg.Stack != "" {
+					flags.Stack = string(wcfg.Stack)
+				}
+				if !cmd.Flags().Changed("app-type") {
+					flags.AppType = string(wcfg.AppType)
+				}
+				if !cmd.Flags().Changed("build-cmd") {
+					flags.BuildCmd = wcfg.BuildCmd
+				}
+				if !cmd.Flags().Changed("test-cmd") {
+					flags.TestCmd = wcfg.TestCmd
+				}
+				if !cmd.Flags().Changed("start-cmd") {
+					flags.StartCmd = wcfg.StartCmd
+				}
+				if wcfg.Image != "" && !cmd.Flags().Changed("image") {
 					flags.Image = wcfg.Image
 				}
-				if wcfg.Port != 0 {
+				if wcfg.Port != 0 && !cmd.Flags().Changed("port") {
 					flags.Port = wcfg.Port
 				}
-				if wcfg.Tag != "" {
+				if wcfg.Tag != "" && !cmd.Flags().Changed("tag") {
 					flags.Tag = wcfg.Tag
 				}
-				if wcfg.Registry != "" {
+				if wcfg.Registry != "" && !cmd.Flags().Changed("registry") {
 					flags.Registry = string(wcfg.Registry)
 				}
-				if wcfg.CI != "" {
+				if wcfg.CI != "" && !cmd.Flags().Changed("ci") {
 					flags.CI = string(wcfg.CI)
 				}
+				flags.PackageManager = wcfg.PackageManager
 				// Merge flag-based k8s settings into wizard config.
 				wcfg.K8s.Enabled = flags.K8s
 				wcfg.K8s.Ingress = flags.Ingress
@@ -180,7 +212,7 @@ func newDetectCommand() *cobra.Command {
 Reports candidate stack, detected indicators, candidate app-type, build /
 test / start commands, lockfile or package manager, and unresolved
 ambiguities. Detection is read-only.`,
-		Args: cobra.NoArgs,
+		Args: classifyArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDetect(cmd.OutOrStdout())
 		},
@@ -188,11 +220,17 @@ ambiguities. Detection is read-only.`,
 }
 
 func runDetect(out io.Writer) error {
-	root, _ := os.Getwd()
+	root, err := os.Getwd()
+	if err != nil {
+		return newExitError(1, fmt.Errorf("detect: %w", err))
+	}
 	d := detector.New()
 	r, err := d.Detect(root)
 	if err != nil {
-		return newExitError(5, fmt.Errorf("detect: %w", err))
+		if errors.Is(err, detector.ErrNoIndicators) {
+			return newExitError(5, fmt.Errorf("detect: %w", err))
+		}
+		return newExitError(1, fmt.Errorf("detect: %w", err))
 	}
 	fmt.Fprintf(out, "stack: %s\n", r.Stack)
 	fmt.Fprintf(out, "indicators: %s\n", strings.Join(r.Indicators, ", "))
@@ -232,7 +270,7 @@ func newValidateCommand() *cobra.Command {
 Checks required files, YAML syntax, Kubernetes field consistency,
 selector/label alignment, image references, Service/Ingress relations,
 GitHub Actions structure, and port/health probe consistency.`,
-		Args: cobra.NoArgs,
+		Args: classifyArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir, _ := cmd.Flags().GetString("dir")
 			return runValidate(dir, cmd.OutOrStderr())
@@ -326,7 +364,7 @@ func newListCommand() *cobra.Command {
 		Long: `List supported stacks, app types, registries, CI providers, and
 deployment templates bundled in the running binary. The list reflects
 actual bundled capability, not a future roadmap.`,
-		Args: cobra.NoArgs,
+		Args: classifyArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(cmd.OutOrStdout(), "Stacks:\n  go, nodejs\n")
 			fmt.Fprintf(cmd.OutOrStdout(), "App types:\n  binary (Go), express, nextjs, vite, nestjs, generic (Node.js)\n")

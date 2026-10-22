@@ -62,7 +62,8 @@ func TestValidate_YAMLInvalidSyntax(t *testing.T) {
 }
 
 func TestValidate_DeploymentMultiDocument(t *testing.T) {
-	// Only first document is validated for a deployment.yaml path.
+	// Deployment docs are fully validated; trailing docs of other kinds pass
+	// through without deep validation (FR-13 still parses every document).
 	arts := []output.Artifact{
 		{Path: "kubernetes/deployment.yaml", Content: []byte(`
 apiVersion: apps/v1
@@ -86,6 +87,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: app
+spec:
+  selector:
+    app: app
+  ports:
+    - port: 8080
+      targetPort: 8080
 `)},
 	}
 	r, err := New().Validate(arts)

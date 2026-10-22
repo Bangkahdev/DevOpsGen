@@ -61,6 +61,7 @@ func (g *engine) Generate(cfg config.Config) ([]output.Artifact, error) {
 func (g *engine) specs(cfg config.Config) []templateSpec {
 	data := templateData{Config: cfg}
 	specs := []templateSpec{
+		{name: ".dockerignore", file: "docker/dockerignore.tmpl", delims: [2]string{"{{", "}}"}, data: data},
 		{name: "Dockerfile", file: dockerfileFor(cfg), delims: [2]string{"{{", "}}"}, data: data},
 	}
 	if cfg.CI == config.CIGitHubActions {
@@ -133,32 +134,36 @@ type templateData struct {
 
 // Name derives a Kubernetes resource name from the image repository.
 // It is the last path segment of the configured image, sanitized for
-// Kubernetes naming rules (lowercase, alphanumeric, '-', '.'; max 253 chars).
+// Kubernetes naming rules (DNS-1035 label: lowercase alphanumeric and '-',
+// starting with a letter, max 63 chars).
 func (t templateData) Name() string {
 	return sanitizeK8sName(lastSegment(t.Config.Image))
 }
 
-// sanitizeK8sName converts a name to be Kubernetes-compatible:
-// lowercase, replace invalid characters with '-', trim leading/trailing non-alphanumeric.
+// sanitizeK8sName converts a name into a valid Kubernetes DNS-1035 label:
+// lowercase, alphanumerics and hyphens only (dots become hyphens), starting
+// with a letter, ending alphanumeric, at most 63 characters.
 func sanitizeK8sName(s string) string {
 	s = strings.ToLower(s)
 	var b strings.Builder
 	for _, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '.' {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
 			b.WriteRune(r)
 		} else {
 			b.WriteRune('-')
 		}
 	}
-	out := b.String()
-	// Trim leading/trailing hyphens and dots.
-	out = strings.Trim(out, "-.")
+	out := strings.Trim(b.String(), "-")
+	// DNS-1035 labels must start with a letter.
+	if len(out) > 0 && (out[0] < 'a' || out[0] > 'z') {
+		out = "app-" + out
+	}
+	if len(out) > 63 {
+		out = out[:63]
+	}
+	out = strings.TrimRight(out, "-")
 	if out == "" {
 		out = "app"
-	}
-	if len(out) > 253 {
-		out = out[:253]
-		out = strings.TrimRight(out, "-.")
 	}
 	return out
 }
@@ -270,6 +275,33 @@ func (t templateData) packageManager() string {
 		return "yarn"
 	default:
 		return "npm"
+	}
+}
+
+// InstallCmd returns the dependency-installation command for the Node.js
+// builder stage. pnpm/yarn workspaces get their own toolchain; the lockfile
+// is always honored when present.
+func (t templateData) InstallCmd() string {
+	switch t.packageManager() {
+	case "pnpm":
+		return "npm install -g pnpm@10 && pnpm install --frozen-lockfile"
+	case "yarn":
+		return "yarn install --frozen-lockfile"
+	default:
+		return "if [ -f package-lock.json ]; then npm ci; else npm install; fi"
+	}
+}
+
+// PruneCmd returns the command that strips development dependencies before
+// the runtime stage.
+func (t templateData) PruneCmd() string {
+	switch t.packageManager() {
+	case "pnpm":
+		return "pnpm install --prod"
+	case "yarn":
+		return "yarn install --production"
+	default:
+		return "npm prune --omit=dev"
 	}
 }
 

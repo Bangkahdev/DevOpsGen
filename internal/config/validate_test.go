@@ -45,7 +45,7 @@ func TestValidateConfig_Valid(t *testing.T) {
 		{Stack: StackGo, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "bangkah/my-app", Port: 8080},
 		{Stack: StackGo, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "bangkah/my-app", Port: 8080, AppType: AppTypeBinary},
 		{Stack: StackNode, CI: CIGitHubActions, Registry: RegistryGHCR, Image: "bangkah/api", Port: 3000, AppType: AppTypeExpress, StartCmd: "npm start"},
-		{Stack: StackNode, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "bangkah/site", Port: 8080, AppType: AppTypeVite, K8s: K8sOptions{Ingress: true, IngressHost: "example.com", HealthPath: "/health"}},
+		{Stack: StackNode, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "bangkah/site", Port: 8080, AppType: AppTypeVite, K8s: K8sOptions{Enabled: true, Ingress: true, IngressHost: "example.com", HealthPath: "/health"}},
 		{Stack: StackNode, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "a/b", Port: 8080, Tag: "v1.2.3"},
 		{Stack: StackNode, CI: CIGitHubActions, Registry: RegistryDockerHub, Image: "a/b", Port: 8080, Tag: "latest"},
 	}

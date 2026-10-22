@@ -13,6 +13,11 @@ import (
 	"strings"
 )
 
+// ErrNoIndicators is returned when no supported stack indicator exists in
+// the inspected root. Callers may use errors.Is to convert it to the
+// "unsupported stack" exit code instead of a general I/O failure code.
+var ErrNoIndicators = errors.New("detector: no supported stack indicators found")
+
 // DetectionResult summarizes what the detector found in a project root.
 type DetectionResult struct {
 	Stack          string
@@ -167,7 +172,7 @@ func (e *engine) Detect(root string) (DetectionResult, error) {
 		results = append(results, nodeRes)
 	}
 	if len(results) == 0 {
-		return DetectionResult{}, errors.New("detector: no supported stack indicators found")
+		return DetectionResult{}, ErrNoIndicators
 	}
 	if len(results) > 1 {
 		// Ambiguous: multiple stacks detected.

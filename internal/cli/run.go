@@ -47,28 +47,54 @@ func RunInit(flags *InitFlags) error {
 		return newExitError(2, fmt.Errorf("config: %w", err))
 	}
 
-	// Stage 2: stack detection when not provided via flags.
-	if cfg.Stack == "" {
-		if !isInteractiveFn() {
-			// Non-interactive: cannot prompt, fail with actionable error.
-			return newExitError(2, errors.New("stack is required; provide --stack or run in an interactive terminal"))
-		}
+	// Stage 2: stack detection and command harvest (SRS 4.1/4.2).
+	// Detection runs in BOTH modes: when the stack is missing it provides the
+	// stack; when the stack or commands are missing it fills them from the
+	// project files without overwriting explicit flags (SRS 4.2:
+	// flags -> detection -> defaults).
+	needsStack := cfg.Stack == ""
+	needsHarvest := cfg.BuildCmd == "" || cfg.TestCmd == "" || cfg.StartCmd == "" || cfg.PackageManager == ""
+	if needsStack || needsHarvest {
 		d := detector.New()
 		result, err := d.Detect(".")
 		if err != nil {
-			return newExitError(2, fmt.Errorf("stack detection failed: %w", err))
-		}
-		if result.IsAmbiguous() {
+			if needsStack {
+				// No stack available: unresolved required parameter.
+				return newExitError(2, fmt.Errorf("stack detection failed: %w; provide --stack", err))
+			}
+			// Explicit stack already given; harvest is best-effort only.
+			result = detector.DetectionResult{}
+		} else if result.IsAmbiguous() && needsStack {
 			return newExitError(5, fmt.Errorf("ambiguous stack: %s", strings.Join(result.Ambiguities, "; ")))
 		}
-		cfg.Stack = config.StackType(result.Stack)
-		if len(result.AppCandidates) == 1 {
-			cfg.AppType = config.AppType(result.AppCandidates[0])
+		if needsStack && result.Stack != "" {
+			cfg.Stack = config.StackType(result.Stack)
 		}
-		cfg.BuildCmd = result.BuildCmd
-		cfg.TestCmd = result.TestCmd
-		cfg.StartCmd = result.StartCmd
-		cfg.PackageManager = result.PackageManager
+		if cfg.AppType == "" && result.Stack != "" && result.Stack == string(cfg.Stack) {
+			// Detection may refine the app-type (e.g. express vs generic).
+			if len(result.AppCandidates) == 1 {
+				cfg.AppType = config.AppType(result.AppCandidates[0])
+			}
+		}
+		if !result.IsAmbiguous() {
+			// Harvest commands and package manager only for fields that the
+			// user did not explicitly set.
+			if cfg.BuildCmd == "" && !flags.changed("build-cmd") {
+				cfg.BuildCmd = result.BuildCmd
+			}
+			if cfg.TestCmd == "" && !flags.changed("test-cmd") {
+				cfg.TestCmd = result.TestCmd
+			}
+			if cfg.StartCmd == "" && !flags.changed("start-cmd") {
+				cfg.StartCmd = result.StartCmd
+			}
+			if cfg.PackageManager == "" {
+				cfg.PackageManager = result.PackageManager
+			}
+		}
+		if needsStack && cfg.Stack == "" {
+			return newExitError(2, errors.New("stack is required; provide --stack"))
+		}
 	}
 
 	// Stage 3: full configuration validation after detection.
@@ -115,12 +141,17 @@ func RunInit(flags *InitFlags) error {
 		for _, p := range plan.Conflicts {
 			fmt.Fprintf(os.Stderr, "  conflict %s (would be replaced)\n", p)
 		}
-		return nil
 	}
 
-	// Conflict without --force -> exit 3.
+	// Conflict without --force -> exit 3. FR-10 requires the same code for a
+	// dry-run with conflicts without --force, so the check ALSO applies after
+	// the dry-run report above.
 	if len(plan.Conflicts) > 0 && !cfg.Generation.Force {
 		return newExitError(3, fmt.Errorf("conflict: %d file(s) would be overwritten without --force", len(plan.Conflicts)))
+	}
+
+	if cfg.Generation.DryRun {
+		return nil
 	}
 
 	// Stage 7: backup and commit.

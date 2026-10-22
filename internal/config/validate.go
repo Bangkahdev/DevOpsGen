@@ -47,8 +47,9 @@ var buildPathRe = regexp.MustCompile(`^([A-Za-z0-9._~-]+([/\\][A-Za-z0-9._~-]+)*
 // HealthPathRe is the exported health path validation regex.
 var HealthPathRe = healthPathRe
 
-// tagRe enforces a safe Docker tag: alphanumeric, underscore, dot, hyphen only.
-var tagRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
+// tagRe enforces a safe Docker tag: must start with an alphanumeric or
+// underscore (docker tag rule), then alphanumeric, underscore, dot, hyphen.
+var tagRe = regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$`)
 
 // validAppTypes maps each stack to its allowed app types (MVP: go and nodejs only).
 var validAppTypes = map[StackType][]AppType{
@@ -102,8 +103,13 @@ func ValidateConfig(cfg Config) error {
 			return err
 		}
 	}
-	if cfg.K8s.HealthPath != "" && !healthPathRe.MatchString(cfg.K8s.HealthPath) {
-		return errInvalidHealthPath
+	if cfg.K8s.HealthPath != "" {
+		if !healthPathRe.MatchString(cfg.K8s.HealthPath) || strings.Contains(cfg.K8s.HealthPath, "..") {
+			return errInvalidHealthPath
+		}
+	}
+	if cfg.K8s.Ingress && !cfg.K8s.Enabled {
+		return errors.New("ingress requires k8s generation (k8s must be enabled)")
 	}
 	if err := validateBuildPath(cfg.BuildPath); err != nil {
 		return fmt.Errorf("build-path: %w", err)
@@ -219,6 +225,10 @@ func ValidAppTypeForStack(stack StackType, appType AppType) bool {
 }
 
 // validateCommand enforces single-line, control-character-free commands.
+//
+// GitHub Actions expressions (`${{ ... }}`) are rejected so a user-supplied
+// command can never be expanded as a workflow expression (NFR-05). Dollar
+// variables without double braces (`${VAR}`) remain allowed.
 func validateCommand(cmd string) error {
 	cmd = strings.TrimSpace(cmd)
 	if cmd == "" {
@@ -226,6 +236,9 @@ func validateCommand(cmd string) error {
 	}
 	if strings.ContainsAny(cmd, "\x00\r\n") {
 		return errInvalidCommand
+	}
+	if strings.Contains(cmd, "${{") {
+		return errors.New("command must not contain GitHub Actions expressions (${{ }})")
 	}
 	// Reject control characters other than tab.
 	for _, r := range cmd {
