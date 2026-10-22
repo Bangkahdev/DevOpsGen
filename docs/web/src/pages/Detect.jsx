@@ -55,8 +55,8 @@ export default function Detect({ rel }) {
           (npm / pnpm) that later steer Docker image commands.
         </li>
         <li>
-          Ambiguity or zero indicators produce a distinct exit code (see{' '}
-          <a href={`${rel}exit-codes/`}>exit codes</a>), so scripts can branch safely.
+          Ambiguity or zero indicators produce a distinct exit code (5) so scripts can branch
+          safely — see <a href={`${rel}exit-codes/`}>exit codes</a>.
         </li>
       </ul>
 
