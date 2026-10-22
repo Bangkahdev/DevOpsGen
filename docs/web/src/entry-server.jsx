@@ -21,7 +21,7 @@ export function renderDocument(route) {
   const url = pageUrl(route.path);
   const image = `${SITE_URL}${route.ogImage}`;
   const body = renderToStaticMarkup(
-    <Layout rel={rel}>
+    <Layout rel={rel} activePath={route.path}>
       <route.component rel={rel} />
     </Layout>,
   );

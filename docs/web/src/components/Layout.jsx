@@ -1,33 +1,58 @@
 import { ROUTES, SITE_URL } from '../routes.jsx';
 
-export default function Layout({ rel, children }) {
+const GROUPS = [
+  { label: 'Overview', items: ['getting-started', 'wizard'] },
+  { label: 'Command reference', items: ['init', 'detect', 'validate'] },
+  { label: 'Operations', items: ['exit-codes'] },
+];
+
+export default function Layout({ rel, activePath, children }) {
+  const homeActive = activePath === '';
   return (
     <>
       <a className="skip" href="#main">skip to content</a>
       <header className="topbar">
         <a className="brand" href={rel || './'}>
           <span className="brand-mark">DG</span>
-          <span>DevOpsGen<span className="brand-sub">DOCS</span></span>
+          <span className="brand-name">DevOpsGen</span>
+          <span className="brand-sub">DOCS</span>
         </a>
-        <nav aria-label="Main navigation">
-          <ul>
-            {ROUTES.filter((r) => r.path !== '').map((r) => (
-              <li key={r.path}>
-                <a
-                  className={rel === '' ? 'nav-link' : 'nav-link nav-sub'}
-                  href={`${rel}${r.path}/`}
-                >
-                  {r.path.replace(/-/g, ' ')}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
         <a className="gh-pill" href="https://github.com/Bangkahdev/DevOpsGen" rel="noopener noreferrer" target="_blank">
           GitHub
         </a>
       </header>
-      <main id="main">{children}</main>
+
+      <div className="shell">
+        <aside className="sidebar" aria-label="Documentation navigation">
+          <a className={`side-link side-home${homeActive ? ' is-active' : ''}`} href={rel || './'}>
+            Home
+          </a>
+          {GROUPS.map((g) => (
+            <div className="side-group" key={g.label}>
+              <p className="group-label">{g.label}</p>
+              <ul>
+                {g.items.map((p) => {
+                  const r = ROUTES.find((x) => x.path === p);
+                  return (
+                    <li key={p}>
+                      <a
+                        className={`side-link${activePath === p ? ' is-active' : ''}`}
+                        href={`${rel}${p}/`}
+                        aria-current={activePath === p ? 'page' : undefined}
+                      >
+                        {r ? r.path.replace(/-/g, ' ') : p}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </aside>
+
+        <main id="main">{children}</main>
+      </div>
+
       <footer className="footer">
         <p>
           DevOpsGen — deterministic DevOps scaffolding for Go &amp; Node.js.{' '}
