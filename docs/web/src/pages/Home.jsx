@@ -8,7 +8,7 @@ export default function Home({ rel }) {
     <>
       <div className="hero">
         <div>
-          <p className="kicker yellow">docker · github actions · kubernetes</p>
+          <p className="kicker">docker · github actions · kubernetes</p>
           <h1>
             DevOps scaffolding,
             <br />
