@@ -15,3 +15,4 @@ export function PageHead({ kicker, title, lede }) {
     </header>
   );
 }
+

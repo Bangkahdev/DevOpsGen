@@ -177,8 +177,9 @@ export default function InitCmd({ rel }) {
         feature="shot-feature"
       />
       <div className="callout callout-ok">
-        Overwrites performed with <code>--force</code> create <code>.bak</code> backups, and any
-        failure mid-run automatically rolls back to the pre-run state.
+        Overwrites performed with <code>--force</code> keep the previous content as{' '}
+        <code>&lt;file&gt;.devopsgen.bak</code> backups, and any failure mid-run triggers a
+        best-effort rollback to the pre-run state.
       </div>
     </>
   );

@@ -55,8 +55,11 @@ export default function ExitCodes({ rel }) {
             <tr>
               <td className="num">4</td>
               <td><span className="badge badge-err">validation failed</span></td>
-              <td>Generated documents exist but do not pass static lint rules.</td>
-              <td>Unpinned workflow action in <code>ci.yaml</code>.</td>
+              <td>
+                Rejected output: a template rendering failure, required artifacts missing, or
+                generated documents failing the static lint rules.
+              </td>
+              <td>A workflow that never publishes the commit SHA tag.</td>
             </tr>
             <tr>
               <td className="num">5</td>

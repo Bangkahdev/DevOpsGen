@@ -57,8 +57,9 @@ export default function Home({ rel }) {
         <div className="card">
           <h3>Validated output</h3>
           <p>
-            Built-in validation checks Dockerfile <code>FROM</code> digests, workflow action
-            pinning, Kubernetes naming and health probes before anything ships.
+            Built-in validation checks Dockerfile structure, GitHub Actions workflow wiring and
+            Kubernetes manifests (selector consistency, port ranges, Ingress paths) before
+            anything ships.
           </p>
         </div>
         <div className="card">
@@ -114,24 +115,28 @@ exit code: 0`}</Code>
               <td><code>docker</code> (+ <code>.dockerignore</code>)</td>
               <td><code>Dockerfile</code></td>
               <td>
-                Hardened image build with non-root user, health check hooks, install/prune
-                commands derived from package manager (npm / pnpm) and lockfile detection.
+                Hardened multi-stage build (Go runs as <code>USER 1000:1000</code> on a scratch
+                base). For Node.js, RUN steps and install/prune commands follow the detected
+                package manager (npm / pnpm) and lockfile. The generated <code>.dockerignore</code>{' '}
+                keeps state, tool caches and env files out of the image.
               </td>
             </tr>
             <tr>
               <td><code>github-actions</code></td>
-              <td><code>.github/workflows/ci.yaml</code></td>
+              <td><code>.github/workflows/ci.yml</code></td>
               <td>
-                Test/build across Go and Node.js versions, docker build &amp; push, coverage
-                floors, manifest validation.
+                Runs your tests when a test command is configured, then builds and pushes the
+                image with both the commit SHA tag and your alias tag, authenticating to the
+                chosen registry via secrets.
               </td>
             </tr>
             <tr>
               <td><code>kubernetes</code></td>
               <td><code>deployment.yaml</code>, <code>service.yaml</code>, optional <code>ingress.yaml</code></td>
               <td>
-                Non-root security context, probes using your health path, RFC 1123-validated
-                names, optional host-based Ingress.
+                DNS 1035-safe resource names, container port wiring, resource requests and
+                limits, health probes when <code>--health-path</code> is given, and an optional
+                host-based Ingress (RFC 1123 hostname).
               </td>
             </tr>
           </tbody>

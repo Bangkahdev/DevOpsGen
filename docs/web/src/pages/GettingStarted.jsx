@@ -51,11 +51,12 @@ make build`}</Code>
         feature="shot-feature"
       />
       <p>Inside a Go project this writes:</p>
-      <Code label="what you get">{`.github/workflows/ci.yaml   # test, vet, build, docker publish
-Kubernetes/deployment.yaml  # non-root, probes, DNS-1053 names
-Kubernetes/service.yaml     # cluster service
-Kubernetes/ingress.yaml     # optional, needs --ingress
-Dockerfile                  # hardened multi-stage build + .dockerignore`}</Code>
+      <Code label="what you get">{`.github/workflows/ci.yml   # tests (when configured), docker build & push
+kubernetes/deployment.yaml  # image, port, resources, optional probes
+kubernetes/service.yaml     # cluster service for the app
+kubernetes/ingress.yaml     # only with --ingress
+Dockerfile                  # hardened multi-stage build
+.dockerignore               # slim build context, secrets excluded`}</Code>
       <div className="callout">
         Second runs are safe: DevOpsGen refuses to overwrite without <code>--force</code> and
         exits with code 3 — see <a href={`${rel}init/`}>the init reference</a>.

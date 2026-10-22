@@ -27,25 +27,27 @@ devopsgen validate --output-dir ./configs`}</Code>
         <div className="card">
           <h3>Docker</h3>
           <ul>
-            <li><code>FROM</code> base images are pinned to digest form</li>
-            <li>Required install/prune steps match the package manager</li>
-            <li>Non-root user declared</li>
+            <li><code>FROM</code> instruction is present</li>
+            <li>no <code>docker login</code> (credentials) inside image builds</li>
+            <li><code>COPY</code>/<code>ADD</code> free of shell chaining (<code>&amp;&amp;</code>, <code>||</code>, <code>2&gt;/dev/null</code>)</li>
           </ul>
         </div>
         <div className="card">
           <h3>GitHub Actions</h3>
           <ul>
-            <li>Workflow documents carry required structure and names</li>
-            <li>Actions are pinned, config files complete</li>
-            <li>Checkout steps reference valid refs</li>
+            <li>parses as a single workflow document with <code>name</code>, <code>on</code>, <code>jobs</code> and steps</li>
+            <li>a <code>actions/checkout</code> step exists</li>
+            <li>the image push references the commit SHA tag</li>
+            <li>no unrendered template actions leak into the output</li>
           </ul>
         </div>
         <div className="card">
           <h3>Kubernetes</h3>
           <ul>
-            <li>Resources are DNS 1123/1035 rename-clean</li>
-            <li>Service ↔ Ingress wiring is consistent</li>
-            <li>Probe/health requirements satisfied</li>
+            <li>Deployment: selector ↔ template label consistency, unique container names, integer <code>containerPort</code> in 1–65535</li>
+            <li>Service: selector plus <code>port</code>/<code>targetPort</code> pairs</li>
+            <li>Ingress: <code>networking.k8s.io/v1</code>, valid <code>pathType</code>, wired <code>backend.service</code></li>
+            <li>Service ↔ Ingress backends stay consistent</li>
           </ul>
         </div>
       </div>
@@ -56,12 +58,19 @@ devopsgen validate --output-dir ./configs`}</Code>
           <Badge tone="ok">0</Badge> — all documents passed.
         </li>
         <li>
-          <Badge tone="err">4</Badge> — at least one document failed validation.
+          <Badge tone="err">4</Badge> — a document failed lint rules, does not parse, or required artifacts are missing.
         </li>
         <li>
-          <Badge tone="err">2</Badge> — malformed input (unreadable paths, invalid flags).
+          <Badge tone="warn">1</Badge> — the output directory itself could not be read.
+        </li>
+        <li>
+          <Badge tone="err">2</Badge> — malformed input (invalid flags).
         </li>
       </ul>
+      <p>
+        Combine with <code>devopsgen init</code> in CI: generate, commit, validate, deploy — the{' '}
+        <a href={`${rel}exit-codes/`}>exit codes</a> page maps every failure class.
+      </p>
       <p>
         Combine with <code>devopsgen init</code> in CI: generate, commit, validate, deploy — the{' '}
         <a href={`${rel}exit-codes/`}>exit codes</a> page maps every failure class.
