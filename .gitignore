@@ -2,6 +2,7 @@
 /devopsgen
 /devopsgen.exe
 *.exe
+*.exe~
 *.bin
 
 # Go
