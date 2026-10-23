@@ -60,6 +60,7 @@ export default function Layout({ rel, activePath, children }) {
           <a href={`${rel}exit-codes/`}>exit codes</a>.
         </p>
         <p className="footer-links">
+          <a href="https://bangkah.tech">bagian dari Bangkah</a> ·{" "}
           <a href={SITE_URL}>canonical site</a> · <a href="https://github.com/Bangkahdev/DevOpsGen">source code</a>
         </p>
       </footer>
